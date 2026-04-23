@@ -131,6 +131,7 @@ function App() {
   const [clientes, setClientes] = useState([]);
   const [ventas, setVentas] = useState([]);
   const [vitems, setVitems] = useState([]);
+  const [prodImagenes, setProdImagenes] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Intentar restaurar sesion via token guardado
@@ -152,16 +153,18 @@ function App() {
     const c = client || sb;
     if (!c) return;
     setLoading(true);
-    const [p,cl,v,vi] = await Promise.all([
+    const [p,cl,v,vi,pi] = await Promise.all([
       c.from('productos').select('*').order('nombre'),
       c.from('clientes').select('*').order('nombre'),
       c.from('ventas').select('*').order('fecha', {ascending:false}),
       c.from('venta_items').select('*'),
+      c.from('producto_imagenes').select('*').order('orden'),
     ]);
     if (p.data) setProductos(p.data);
     if (cl.data) setClientes(cl.data);
     if (v.data) setVentas(v.data);
     if (vi.data) setVitems(vi.data);
+    if (pi.data) setProdImagenes(pi.data);
     setLoading(false);
   }, [sb]);
 
@@ -203,7 +206,7 @@ function App() {
         ) : (
           <>
             {section === 'dashboard' && <Dashboard productos={productos} ventas={ventas} vitems={vitems} clientes={clientes} onNav={setSection} />}
-            {section === 'productos' && <Productos sb={sb} productos={productos} onRefresh={() => load()} />}
+            {section === 'productos' && <Productos sb={sb} productos={productos} prodImagenes={prodImagenes} onRefresh={() => load()} />}
             {section === 'ventas' && <Ventas sb={sb} ventas={ventas} vitems={vitems} productos={productos} clientes={clientes} onRefresh={() => load()} />}
             {section === 'clientes' && <ClientesView sb={sb} clientes={clientes} ventas={ventas} onRefresh={() => load()} />}
           </>
@@ -391,102 +394,154 @@ function Dashboard({ productos, ventas, vitems, clientes, onNav }) {
 }
 
 // ─── Productos ───────────────────────────────────────────────────────────────
-const CATS = ['Billeteras','Carteras','Bolsos','Cinturones','Mochilas','Accesorios','Otros'];
+const CATS   = ['Billeteras','Carteras','Bolsos','Cinturones','Mochilas','Accesorios','Otros'];
 const MARCAS = ['Amayra','Footy','Chimola','Wanderlust','Lima'];
 const BUCKET = 'productos-imagenes';
 
 async function uploadImagen(sb, file, productoId) {
-  const ext = file.name.split('.').pop();
+  const ext  = file.name.split('.').pop();
   const path = productoId + '/' + Date.now() + '.' + ext;
   const { error } = await sb.storage.from(BUCKET).upload(path, file, { upsert: true });
   if (error) throw error;
   const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
-  return data.publicUrl;
+  return { url: data.publicUrl, path };
 }
 
-async function deleteImagen(sb, url) {
+async function deleteImagenStorage(sb, url) {
   try {
-    const path = url.split('/').slice(-2).join('/');
-    await sb.storage.from(BUCKET).remove([path]);
-  } catch(e) { console.warn('No se pudo borrar imagen:', e); }
+    const parts = url.split('/object/public/' + BUCKET + '/');
+    if (parts[1]) await sb.storage.from(BUCKET).remove([decodeURIComponent(parts[1])]);
+  } catch(e) { console.warn('No se pudo borrar del storage:', e); }
 }
 
-function ImagenUploader({ sb, productoId, imagenUrl, onChange }) {
+// ─── Galería de imágenes ───────────────────────────────────────────────────────
+function GaleriaUploader({ sb, productoId, imagenes, onChange }) {
   const [uploading, setUploading] = useState(false);
-  const [preview, setPreview] = useState(imagenUrl || '');
   const inputRef = React.useRef();
 
-  const handleFile = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    // preview local inmediato
-    const local = URL.createObjectURL(file);
-    setPreview(local);
-    if (!productoId) {
-      // nuevo producto: guardar archivo para subir después del insert
-      onChange({ pendingFile: file, localUrl: local });
-      return;
+  // imagenes: [{ id?, url, path?, pendingFile?, localUrl?, orden }]
+  const handleFiles = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    if (productoId) {
+      // Producto existente: subir directo
+      setUploading(true);
+      const nuevas = [];
+      for (const file of files) {
+        try {
+          const { url, path } = await uploadImagen(sb, file, productoId);
+          const orden = imagenes.length + nuevas.length;
+          const { data: img } = await sb.from('producto_imagenes')
+            .insert([{ producto_id: productoId, url, orden }])
+            .select().single();
+          if (img) nuevas.push(img);
+        } catch(err) { alert('Error al subir: ' + err.message); }
+      }
+      onChange([...imagenes, ...nuevas]);
+      setUploading(false);
+    } else {
+      // Producto nuevo: preview local, se sube al guardar
+      const pendientes = files.map((file, i) => ({
+        id: null,
+        pendingFile: file,
+        localUrl: URL.createObjectURL(file),
+        url: null,
+        orden: imagenes.length + i,
+      }));
+      onChange([...imagenes, ...pendientes]);
     }
-    setUploading(true);
-    try {
-      const url = await uploadImagen(sb, file, productoId);
-      setPreview(url);
-      onChange({ url });
-    } catch(err) {
-      alert('Error al subir imagen: ' + err.message);
-      setPreview(imagenUrl || '');
-    }
-    setUploading(false);
+    inputRef.current.value = '';
   };
 
-  const handleRemove = async () => {
-    if (preview && preview.includes('supabase')) await deleteImagen(sb, preview);
-    setPreview('');
-    onChange({ url: null });
-    inputRef.current.value = '';
+  const handleRemove = async (img, idx) => {
+    if (img.url && img.url.includes('supabase')) {
+      await deleteImagenStorage(sb, img.url);
+      if (img.id) await sb.from('producto_imagenes').delete().eq('id', img.id);
+    }
+    const updated = imagenes.filter((_,i) => i !== idx)
+      .map((im, i) => ({...im, orden: i}));
+    onChange(updated);
   };
 
   return (
     <div>
-      {preview ? (
-        <div style={{position:'relative', display:'inline-block'}}>
-          <img src={preview} alt="producto" style={{width:'100%', maxHeight:'160px', objectFit:'cover', borderRadius:'8px', border:'1px solid #e8e8e4', display:'block'}} />
-          <button onClick={handleRemove} style={{position:'absolute', top:'6px', right:'6px', background:'rgba(0,0,0,0.55)', color:'#fff', border:'none', borderRadius:'50%', width:'24px', height:'24px', cursor:'pointer', fontSize:'13px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'700'}}>x</button>
-          {!preview.includes('supabase') && <div style={{fontSize:'10px', color:'#999', marginTop:'4px'}}>Pendiente de guardar</div>}
-        </div>
-      ) : (
-        <div onClick={() => inputRef.current.click()} style={{border:'2px dashed #d0d0cc', borderRadius:'8px', padding:'24px', textAlign:'center', cursor:'pointer', background:'#fafaf7', transition:'border-color 0.15s'}}
-          onMouseOver={e=>e.currentTarget.style.borderColor='#1D9E75'}
-          onMouseOut={e=>e.currentTarget.style.borderColor='#d0d0cc'}>
-          <div style={{fontSize:'22px', marginBottom:'6px'}}>&#128247;</div>
-          <div style={{fontSize:'12px', color:'#888'}}>{uploading ? 'Subiendo...' : 'Hacer clic para subir imagen'}</div>
-          <div style={{fontSize:'11px', color:'#bbb', marginTop:'3px'}}>JPG, PNG, WEBP</div>
+      {/* Galería */}
+      {imagenes.length > 0 && (
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px', marginBottom:'10px'}}>
+          {imagenes.map((img, idx) => (
+            <div key={idx} style={{position:'relative', aspectRatio:'1', borderRadius:'8px', overflow:'hidden', border:'1px solid #e8e8e4'}}>
+              <img
+                src={img.localUrl || img.url}
+                alt=""
+                style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}}
+              />
+              {/* Botón eliminar */}
+              <button
+                onClick={() => handleRemove(img, idx)}
+                style={{position:'absolute', top:'3px', right:'3px', background:'rgba(0,0,0,0.6)', color:'#fff', border:'none', borderRadius:'50%', width:'20px', height:'20px', cursor:'pointer', fontSize:'11px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'700', lineHeight:1}}
+              >x</button>
+              {/* Botón descargar (solo imágenes ya subidas) */}
+              {img.url && img.url.includes('supabase') && (
+                <a
+                  href={img.url} download target="_blank" rel="noreferrer"
+                  style={{position:'absolute', bottom:'3px', right:'3px', background:'rgba(0,0,0,0.5)', color:'#fff', borderRadius:'4px', width:'20px', height:'20px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', textDecoration:'none'}}
+                  title="Descargar"
+                >&#11015;</a>
+              )}
+              {/* Indicador pendiente */}
+              {img.pendingFile && (
+                <div style={{position:'absolute', bottom:0, left:0, right:0, background:'rgba(0,0,0,0.45)', color:'#fff', fontSize:'9px', textAlign:'center', padding:'2px'}}>pendiente</div>
+              )}
+              {/* Número de orden */}
+              {imagenes.length > 1 && (
+                <div style={{position:'absolute', top:'3px', left:'3px', background:'rgba(0,0,0,0.45)', color:'#fff', fontSize:'9px', borderRadius:'3px', padding:'1px 4px'}}>{idx+1}</div>
+              )}
+            </div>
+          ))}
         </div>
       )}
-      <input ref={inputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handleFile} />
+      {/* Zona de subida */}
+      <div
+        onClick={() => !uploading && inputRef.current.click()}
+        style={{border:'2px dashed #d0d0cc', borderRadius:'8px', padding:'14px', textAlign:'center', cursor: uploading ? 'default' : 'pointer', background:'#fafaf7', transition:'border-color 0.15s'}}
+        onMouseOver={e=>{ if(!uploading) e.currentTarget.style.borderColor='#1D9E75'; }}
+        onMouseOut={e=>e.currentTarget.style.borderColor='#d0d0cc'}
+      >
+        <div style={{fontSize:'18px', marginBottom:'4px'}}>&#128247;</div>
+        <div style={{fontSize:'12px', color:'#888'}}>
+          {uploading ? 'Subiendo...' : imagenes.length > 0 ? '+ Agregar más fotos' : 'Subir fotos del producto'}
+        </div>
+        <div style={{fontSize:'10px', color:'#bbb', marginTop:'2px'}}>JPG, PNG, WEBP — podés seleccionar varias</div>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={handleFiles} />
     </div>
   );
 }
 
-function Productos({ sb, productos, onRefresh }) {
-  const [modal, setModal] = useState(false);
+function Productos({ sb, productos, prodImagenes, onRefresh }) {
+  const [modal, setModal]       = useState(false);
   const [editando, setEditando] = useState(null);
-  const [q, setQ] = useState('');
-  const [imgData, setImgData] = useState({ url: null, pendingFile: null, localUrl: null });
+  const [q, setQ]               = useState('');
+  const [imagenes, setImagenes] = useState([]); // imagenes del modal actual
   const emptyForm = { nombre:'', categoria:'', marca:'', codigo_barras:'', descripcion:'', precio_costo:'', precio_venta:'', stock_actual:'', stock_minimo:'3' };
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm]   = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+
+  const imagenesDeProducto = id => prodImagenes.filter(i => i.producto_id === id).sort((a,b) => a.orden - b.orden);
+  const miniatura = p => { const imgs = imagenesDeProducto(p.id); return imgs.length > 0 ? imgs[0].url : null; };
 
   const openNew = () => {
     setEditando(null);
     setForm(emptyForm);
-    setImgData({ url: null, pendingFile: null, localUrl: null });
+    setImagenes([]);
     setModal(true);
   };
+
   const openEdit = p => {
     setEditando(p);
     setForm({nombre:p.nombre,categoria:p.categoria||'',marca:p.marca||'',codigo_barras:p.codigo_barras||'',descripcion:p.descripcion||'',precio_costo:p.precio_costo||'',precio_venta:p.precio_venta||'',stock_actual:p.stock_actual||'',stock_minimo:p.stock_minimo||'3'});
-    setImgData({ url: p.imagen_url || null, pendingFile: null, localUrl: null });
+    setImagenes(imagenesDeProducto(p.id));
     setModal(true);
   };
 
@@ -499,17 +554,23 @@ function Productos({ sb, productos, onRefresh }) {
         codigo_barras:form.codigo_barras||null, descripcion:form.descripcion,
         precio_costo:+form.precio_costo||0, precio_venta:+form.precio_venta||0,
         stock_actual:+form.stock_actual||0, stock_minimo:+form.stock_minimo||3,
-        imagen_url: imgData.url || (editando ? editando.imagen_url : null)
       };
+
+      let productoId = editando ? editando.id : null;
+
       if (editando) {
         await sb.from('productos').update(d).eq('id', editando.id);
       } else {
-        const { data: nuevo } = await sb.from('productos').insert([d]).select().single();
-        // ahora subimos la imagen pendiente con el id real
-        if (nuevo && imgData.pendingFile) {
-          const url = await uploadImagen(sb, imgData.pendingFile, nuevo.id);
-          await sb.from('productos').update({ imagen_url: url }).eq('id', nuevo.id);
-        }
+        const { data: nuevo, error } = await sb.from('productos').insert([d]).select().single();
+        if (error) throw error;
+        productoId = nuevo.id;
+      }
+
+      // Subir imágenes pendientes (solo para producto nuevo o drag-drop en existente)
+      const pendientes = imagenes.filter(i => i.pendingFile);
+      for (const img of pendientes) {
+        const { url } = await uploadImagen(sb, img.pendingFile, productoId);
+        await sb.from('producto_imagenes').insert([{ producto_id: productoId, url, orden: img.orden }]);
       }
     } catch(err) {
       alert('Error al guardar: ' + err.message);
@@ -518,9 +579,11 @@ function Productos({ sb, productos, onRefresh }) {
   };
 
   const del = async id => {
-    if (!confirm('Eliminar producto?')) return;
-    const p = productos.find(p=>p.id===id);
-    if (p && p.imagen_url) await deleteImagen(sb, p.imagen_url);
+    if (!confirm('Eliminar producto y todas sus imagenes?')) return;
+    // Eliminar imagenes del storage
+    const imgs = imagenesDeProducto(id);
+    for (const img of imgs) await deleteImagenStorage(sb, img.url);
+    // Las filas de producto_imagenes se borran en cascada
     await sb.from('productos').delete().eq('id', id);
     onRefresh();
   };
@@ -553,25 +616,32 @@ function Productos({ sb, productos, onRefresh }) {
               <thead><tr><th>Producto</th><th>Marca</th><th>Cod. barras</th><th>Costo</th><th>Precio</th><th>Margen</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
               <tbody>
                 {filtrados.map(p => {
-                  const margen = p.precio_venta > 0 ? Math.round((p.precio_venta - p.precio_costo) / p.precio_venta * 100) : 0;
-                  const st = p.stock_actual === 0 ? 'tag-none' : p.stock_actual <= p.stock_minimo ? 'tag-low' : 'tag-ok';
+                  const margen  = p.precio_venta > 0 ? Math.round((p.precio_venta - p.precio_costo) / p.precio_venta * 100) : 0;
+                  const st      = p.stock_actual === 0 ? 'tag-none' : p.stock_actual <= p.stock_minimo ? 'tag-low' : 'tag-ok';
                   const stLabel = p.stock_actual === 0 ? 'Sin stock' : p.stock_actual <= p.stock_minimo ? 'Bajo' : 'OK';
+                  const thumb   = miniatura(p);
+                  const nImgs   = imagenesDeProducto(p.id).length;
                   return (
                     <tr key={p.id}>
                       <td>
                         <div style={{display:'flex', alignItems:'center', gap:'9px'}}>
-                          {p.imagen_url
-                            ? <img src={p.imagen_url} alt="" style={{width:'36px', height:'36px', objectFit:'cover', borderRadius:'6px', border:'1px solid #e8e8e4', flexShrink:0}} />
-                            : <div style={{width:'36px', height:'36px', background:'#f0f0ec', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', flexShrink:0}}>&#128230;</div>
-                          }
+                          <div style={{position:'relative', flexShrink:0}}>
+                            {thumb
+                              ? <img src={thumb} alt="" style={{width:'38px', height:'38px', objectFit:'cover', borderRadius:'6px', border:'1px solid #e8e8e4', display:'block'}} />
+                              : <div style={{width:'38px', height:'38px', background:'#f0f0ec', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px'}}>&#128230;</div>
+                            }
+                            {nImgs > 1 && (
+                              <div style={{position:'absolute', bottom:'-4px', right:'-4px', background:'#378ADD', color:'#fff', fontSize:'9px', fontWeight:'700', borderRadius:'10px', padding:'1px 4px', border:'1px solid #fff'}}>{nImgs}</div>
+                            )}
+                          </div>
                           <div>
                             <div style={{fontWeight:'500'}}>{p.nombre}</div>
                             {p.categoria && <div style={{fontSize:'11px', color:'#999'}}>{p.categoria}</div>}
                           </div>
                         </div>
                       </td>
-                      <td>{p.marca ? <span className="badge badge-blue">{p.marca}</span> : <span style={{color:'#ccc'}}>—</span>}</td>
-                      <td style={{fontSize:'12px', fontFamily:'monospace', color:'#666'}}>{p.codigo_barras || <span style={{color:'#ccc'}}>—</span>}</td>
+                      <td>{p.marca ? <span className="badge badge-blue">{p.marca}</span> : <span style={{color:'#ccc'}}>-</span>}</td>
+                      <td style={{fontSize:'12px', fontFamily:'monospace', color:'#666'}}>{p.codigo_barras || <span style={{color:'#ccc'}}>-</span>}</td>
                       <td>${Number(p.precio_costo).toLocaleString('es-AR')}</td>
                       <td style={{fontWeight:'500'}}>${Number(p.precio_venta).toLocaleString('es-AR')}</td>
                       <td style={{color: margen>30?'#0F6E56':margen>10?'#854F0B':'#A32D2D', fontWeight:'500'}}>{margen}%</td>
@@ -585,9 +655,6 @@ function Productos({ sb, productos, onRefresh }) {
                       <td><span className={'tag ' + st}>{stLabel}</span></td>
                       <td>
                         <div style={{display:'flex', gap:'5px'}}>
-                          {p.imagen_url && (
-                            <a href={p.imagen_url} download target="_blank" rel="noreferrer" style={{padding:'5px 9px', fontSize:'12px', fontWeight:'500', border:'1px solid #d0d0cc', borderRadius:'6px', background:'transparent', color:'#444', cursor:'pointer', textDecoration:'none'}} title="Descargar imagen">&#11015;</a>
-                          )}
                           <button className="btn-secondary btn-sm" onClick={() => openEdit(p)}>Editar</button>
                           <button className="btn-danger" onClick={() => del(p.id)}>x</button>
                         </div>
@@ -602,14 +669,14 @@ function Productos({ sb, productos, onRefresh }) {
 
       {modal && (
         <div className="modal-bg">
-          <div className="modal-box" style={{maxWidth:'540px'}}>
+          <div className="modal-box" style={{maxWidth:'560px'}}>
             <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem'}}>
               <span style={{fontWeight:'600', fontSize:'15px'}}>{editando?'Editar producto':'Nuevo producto'}</span>
               <button style={{background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#999', lineHeight:1}} onClick={() => setModal(false)}>x</button>
             </div>
 
             <div className="form-row">
-              <div style={{display:'flex', flexDirection:'column', gap:'14px'}}>
+              <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
                 <div className="form-group" style={{marginBottom:0}}>
                   <label className="form-label">Nombre *</label>
                   <input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Ej: Billetera marron cuero" />
@@ -633,16 +700,14 @@ function Productos({ sb, productos, onRefresh }) {
                   <input value={form.codigo_barras} onChange={e=>setForm({...form,codigo_barras:e.target.value})} placeholder="Escanear o escribir" style={{fontFamily:'monospace'}} />
                 </div>
               </div>
+
               <div className="form-group" style={{marginBottom:0}}>
-                <label className="form-label">Imagen del producto</label>
-                <ImagenUploader
+                <label className="form-label">Fotos ({imagenes.length})</label>
+                <GaleriaUploader
                   sb={sb}
                   productoId={editando ? editando.id : null}
-                  imagenUrl={imgData.localUrl || imgData.url}
-                  onChange={data => {
-                    if (data.pendingFile) setImgData({ url: null, pendingFile: data.pendingFile, localUrl: data.localUrl });
-                    else setImgData({ url: data.url, pendingFile: null, localUrl: null });
-                  }}
+                  imagenes={imagenes}
+                  onChange={setImagenes}
                 />
               </div>
             </div>
