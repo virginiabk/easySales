@@ -132,6 +132,7 @@ function App() {
   const [ventas, setVentas] = useState([]);
   const [vitems, setVitems] = useState([]);
   const [prodImagenes, setProdImagenes] = useState([]);
+  const [config, setConfig] = useState({ marcas:[], categorias:[], proveedores:[] });
   const [loading, setLoading] = useState(false);
 
   // Intentar restaurar sesion via token guardado
@@ -153,18 +154,23 @@ function App() {
     const c = client || sb;
     if (!c) return;
     setLoading(true);
-    const [p,cl,v,vi,pi] = await Promise.all([
+    const [p,cl,v,vi,pi,cfg] = await Promise.all([
       c.from('productos').select('*').order('nombre'),
       c.from('clientes').select('*').order('nombre'),
       c.from('ventas').select('*').order('fecha', {ascending:false}),
       c.from('venta_items').select('*'),
       c.from('producto_imagenes').select('*').order('orden'),
+      c.from('configuracion').select('*'),
     ]);
     if (p.data) setProductos(p.data);
     if (cl.data) setClientes(cl.data);
     if (v.data) setVentas(v.data);
     if (vi.data) setVitems(vi.data);
     if (pi.data) setProdImagenes(pi.data);
+    if (cfg.data) {
+      const parse = tipo => (cfg.data.find(r=>r.tipo===tipo)?.valores || []);
+      setConfig({ marcas: parse('marca'), categorias: parse('categoria'), proveedores: parse('proveedor') });
+    }
     setLoading(false);
   }, [sb]);
 
@@ -181,6 +187,7 @@ function App() {
     {id:'productos', icon:'📦', label:'Productos'},
     {id:'ventas', icon:'💰', label:'Ventas'},
     {id:'clientes', icon:'👥', label:'Clientes'},
+    {id:'configuracion', icon:'⚙️', label:'Configuración'},
   ];
 
   return (
@@ -206,9 +213,10 @@ function App() {
         ) : (
           <>
             {section === 'dashboard' && <Dashboard productos={productos} ventas={ventas} vitems={vitems} clientes={clientes} onNav={setSection} />}
-            {section === 'productos' && <Productos sb={sb} productos={productos} prodImagenes={prodImagenes} onRefresh={() => load()} />}
+            {section === 'productos' && <Productos sb={sb} productos={productos} prodImagenes={prodImagenes} config={config} onRefresh={() => load()} />}
             {section === 'ventas' && <Ventas sb={sb} ventas={ventas} vitems={vitems} productos={productos} clientes={clientes} onRefresh={() => load()} />}
             {section === 'clientes' && <ClientesView sb={sb} clientes={clientes} ventas={ventas} onRefresh={() => load()} />}
+            {section === 'configuracion' && <Configuracion sb={sb} config={config} onRefresh={() => load()} />}
           </>
         )}
       </div>
@@ -394,9 +402,8 @@ function Dashboard({ productos, ventas, vitems, clientes, onNav }) {
 }
 
 // ─── Productos ───────────────────────────────────────────────────────────────
-const CATS   = ['Billeteras','Carteras','Bolsos','Cinturones','Mochilas','Accesorios','Otros'];
-const MARCAS = ['Amayra','Footy','Chimola','Wanderlust','Lima'];
 const BUCKET = 'productos-imagenes';
+// CATS y MARCAS se reciben como props desde config de BD
 
 async function uploadImagen(sb, file, productoId) {
   const ext  = file.name.split('.').pop();
@@ -519,7 +526,9 @@ function GaleriaUploader({ sb, productoId, imagenes, onChange }) {
   );
 }
 
-function Productos({ sb, productos, prodImagenes, onRefresh }) {
+function Productos({ sb, productos, prodImagenes, config, onRefresh }) {
+  const CATS   = config.categorias.length ? config.categorias : ['Billeteras','Carteras','Bolsos','Cinturones','Mochilas','Accesorios','Otros'];
+  const MARCAS = config.marcas.length ? config.marcas : ['Amayra','Footy','Chimola','Wanderlust','Lima'];
   const [modal, setModal]       = useState(false);
   const [editando, setEditando] = useState(null);
   const [q, setQ]               = useState('');
@@ -1222,6 +1231,152 @@ function ClientesView({ sb, clientes, ventas, onRefresh }) {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+// ─── Configuración ────────────────────────────────────────────────────────────
+function Configuracion({ sb, config, onRefresh }) {
+  const [tab, setTab]     = useState('marcas');
+  const [saving, setSaving] = useState(false);
+
+  // Estado local editable por tab
+  const [marcas,      setMarcas]      = useState([...config.marcas]);
+  const [categorias,  setCategorias]  = useState([...config.categorias]);
+  const [proveedores, setProveedores] = useState([...config.proveedores]);
+
+  // Sincronizar si config cambia desde fuera
+  React.useEffect(() => { setMarcas([...config.marcas]); },      [config.marcas.join(',')]);
+  React.useEffect(() => { setCategorias([...config.categorias]); }, [config.categorias.join(',')]);
+  React.useEffect(() => { setProveedores([...config.proveedores]); }, [config.proveedores.join(',')]);
+
+  const tabs = [
+    { id:'marcas',      label:'Marcas',      icon:'🏷️',  valores: marcas,      setValores: setMarcas },
+    { id:'categorias',  label:'Categorías',  icon:'📂',  valores: categorias,  setValores: setCategorias },
+    { id:'proveedores', label:'Proveedores', icon:'🏭',  valores: proveedores, setValores: setProveedores },
+  ];
+
+  const current = tabs.find(t => t.id === tab);
+
+  const saveTab = async () => {
+    setSaving(true);
+    try {
+      await sb.from('configuracion')
+        .upsert({ tipo: tab, valores: current.valores }, { onConflict: 'tipo' });
+      onRefresh();
+    } catch(e) { alert('Error al guardar: ' + e.message); }
+    setSaving(false);
+  };
+
+  const addItem = () => {
+    current.setValores([...current.valores, '']);
+  };
+
+  const updateItem = (idx, val) => {
+    const updated = [...current.valores];
+    updated[idx] = val;
+    current.setValores(updated);
+  };
+
+  const removeItem = (idx) => {
+    current.setValores(current.valores.filter((_,i) => i !== idx));
+  };
+
+  const moveItem = (idx, dir) => {
+    const arr = [...current.valores];
+    const swap = idx + dir;
+    if (swap < 0 || swap >= arr.length) return;
+    [arr[idx], arr[swap]] = [arr[swap], arr[idx]];
+    current.setValores(arr);
+  };
+
+  return (
+    <div>
+      <h1 style={{fontSize:'19px', fontWeight:'600', marginBottom:'1.5rem'}}>Configuración</h1>
+
+      <div style={{display:'grid', gridTemplateColumns:'180px 1fr', gap:'1.5rem', alignItems:'start'}}>
+
+        {/* Menú lateral de tabs */}
+        <div className="card" style={{padding:'8px'}}>
+          {tabs.map(t => (
+            <div
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={'nav-item' + (tab === t.id ? ' active' : '')}
+              style={{marginBottom:'2px'}}
+            >
+              <span style={{fontSize:'15px'}}>{t.icon}</span>
+              <div>
+                <div>{t.label}</div>
+                <div style={{fontSize:'11px', opacity:0.7}}>{(tab === t.id ? current.valores : config[t.id]).length} items</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Panel de edición */}
+        <div className="card">
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem'}}>
+            <div>
+              <div style={{fontWeight:'600', fontSize:'15px'}}>{current.label}</div>
+              <div style={{fontSize:'12px', color:'#888', marginTop:'2px'}}>
+                {tab === 'marcas' && 'Marcas disponibles al cargar productos.'}
+                {tab === 'categorias' && 'Categorías para clasificar productos.'}
+                {tab === 'proveedores' && 'Proveedores para referencia en productos.'}
+              </div>
+            </div>
+            <button className="btn-primary btn-sm" onClick={addItem}>+ Agregar</button>
+          </div>
+
+          {current.valores.length === 0 ? (
+            <div className="empty-state" style={{padding:'2rem'}}>
+              <div style={{fontSize:'28px', marginBottom:'8px'}}>{current.icon}</div>
+              <div>No hay {current.label.toLowerCase()} todavía.</div>
+              <button className="btn-secondary" style={{marginTop:'12px'}} onClick={addItem}>+ Agregar el primero</button>
+            </div>
+          ) : (
+            <div style={{display:'flex', flexDirection:'column', gap:'8px', marginBottom:'1.25rem'}}>
+              {current.valores.map((val, idx) => (
+                <div key={idx} style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                  {/* Orden */}
+                  <div style={{display:'flex', flexDirection:'column', gap:'2px'}}>
+                    <button
+                      onClick={() => moveItem(idx, -1)}
+                      disabled={idx === 0}
+                      style={{background:'none', border:'1px solid #e0e0dc', borderRadius:'4px', width:'20px', height:'18px', cursor:'pointer', fontSize:'9px', color: idx===0?'#ccc':'#666', display:'flex', alignItems:'center', justifyContent:'center'}}
+                    >▲</button>
+                    <button
+                      onClick={() => moveItem(idx, 1)}
+                      disabled={idx === current.valores.length - 1}
+                      style={{background:'none', border:'1px solid #e0e0dc', borderRadius:'4px', width:'20px', height:'18px', cursor:'pointer', fontSize:'9px', color: idx===current.valores.length-1?'#ccc':'#666', display:'flex', alignItems:'center', justifyContent:'center'}}
+                    >▼</button>
+                  </div>
+                  <input
+                    value={val}
+                    onChange={e => updateItem(idx, e.target.value)}
+                    placeholder={'Nombre de ' + current.label.slice(0,-1).toLowerCase()}
+                    style={{flex:1}}
+                  />
+                  <button className="btn-danger" onClick={() => removeItem(idx)}>x</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {current.valores.length > 0 && (
+            <div style={{display:'flex', justifyContent:'flex-end', gap:'8px', borderTop:'1px solid #e8e8e4', paddingTop:'1rem'}}>
+              <button className="btn-secondary" onClick={() => {
+                setMarcas([...config.marcas]);
+                setCategorias([...config.categorias]);
+                setProveedores([...config.proveedores]);
+              }}>Descartar cambios</button>
+              <button className="btn-primary" onClick={saveTab} disabled={saving}>
+                {saving ? 'Guardando...' : 'Guardar ' + current.label}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
