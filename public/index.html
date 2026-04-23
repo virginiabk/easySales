@@ -132,6 +132,8 @@ function App() {
   const [ventas, setVentas] = useState([]);
   const [vitems, setVitems] = useState([]);
   const [prodImagenes, setProdImagenes] = useState([]);
+  const [prodPrecios, setProdPrecios]   = useState([]);
+  const [prodVariantes, setProdVariantes] = useState([]);
   const [config, setConfig] = useState({ marcas:[], categorias:[], proveedores:[] });
   const [loading, setLoading] = useState(false);
 
@@ -154,19 +156,23 @@ function App() {
     const c = client || sb;
     if (!c) return;
     setLoading(true);
-    const [p,cl,v,vi,pi,cfg] = await Promise.all([
+    const [p,cl,v,vi,pi,cfg,pp,pv] = await Promise.all([
       c.from('productos').select('*').order('nombre'),
       c.from('clientes').select('*').order('nombre'),
       c.from('ventas').select('*').order('fecha', {ascending:false}),
       c.from('venta_items').select('*'),
       c.from('producto_imagenes').select('*').order('orden'),
       c.from('configuracion').select('*'),
+      c.from('producto_precios').select('*').order('fecha', {ascending:false}),
+      c.from('producto_variantes').select('*').order('created_at'),
     ]);
     if (p.data) setProductos(p.data);
     if (cl.data) setClientes(cl.data);
     if (v.data) setVentas(v.data);
     if (vi.data) setVitems(vi.data);
     if (pi.data) setProdImagenes(pi.data);
+    if (pp.data) setProdPrecios(pp.data);
+    if (pv.data) setProdVariantes(pv.data);
     if (cfg.data) {
       const parse = tipo => (cfg.data.find(r=>r.tipo===tipo)?.valores || []);
       setConfig({ marcas: parse('marca'), categorias: parse('categoria'), proveedores: parse('proveedor') });
@@ -213,7 +219,7 @@ function App() {
         ) : (
           <>
             {section === 'dashboard' && <Dashboard productos={productos} ventas={ventas} vitems={vitems} clientes={clientes} onNav={setSection} />}
-            {section === 'productos' && <Productos sb={sb} productos={productos} prodImagenes={prodImagenes} config={config} onRefresh={() => load()} />}
+            {section === 'productos' && <Productos sb={sb} productos={productos} prodImagenes={prodImagenes} prodPrecios={prodPrecios} prodVariantes={prodVariantes} config={config} onRefresh={() => load()} />}
             {section === 'ventas' && <Ventas sb={sb} ventas={ventas} vitems={vitems} productos={productos} clientes={clientes} onRefresh={() => load()} />}
             {section === 'clientes' && <ClientesView sb={sb} clientes={clientes} ventas={ventas} onRefresh={() => load()} />}
             {section === 'configuracion' && <Configuracion sb={sb} config={config} onRefresh={() => load()} />}
@@ -403,7 +409,6 @@ function Dashboard({ productos, ventas, vitems, clientes, onNav }) {
 
 // ─── Productos ───────────────────────────────────────────────────────────────
 const BUCKET = 'productos-imagenes';
-// CATS y MARCAS se reciben como props desde config de BD
 
 async function uploadImagen(sb, file, productoId) {
   const ext  = file.name.split('.').pop();
@@ -421,41 +426,29 @@ async function deleteImagenStorage(sb, url) {
   } catch(e) { console.warn('No se pudo borrar del storage:', e); }
 }
 
-// ─── Galería de imágenes ───────────────────────────────────────────────────────
+// ─── Galería ─────────────────────────────────────────────────────────────────
 function GaleriaUploader({ sb, productoId, imagenes, onChange }) {
   const [uploading, setUploading] = useState(false);
   const inputRef = React.useRef();
 
-  // imagenes: [{ id?, url, path?, pendingFile?, localUrl?, orden }]
   const handleFiles = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
-
     if (productoId) {
-      // Producto existente: subir directo
       setUploading(true);
       const nuevas = [];
       for (const file of files) {
         try {
-          const { url, path } = await uploadImagen(sb, file, productoId);
+          const { url } = await uploadImagen(sb, file, productoId);
           const orden = imagenes.length + nuevas.length;
-          const { data: img } = await sb.from('producto_imagenes')
-            .insert([{ producto_id: productoId, url, orden }])
-            .select().single();
+          const { data: img } = await sb.from('producto_imagenes').insert([{ producto_id: productoId, url, orden }]).select().single();
           if (img) nuevas.push(img);
         } catch(err) { alert('Error al subir: ' + err.message); }
       }
       onChange([...imagenes, ...nuevas]);
       setUploading(false);
     } else {
-      // Producto nuevo: preview local, se sube al guardar
-      const pendientes = files.map((file, i) => ({
-        id: null,
-        pendingFile: file,
-        localUrl: URL.createObjectURL(file),
-        url: null,
-        orden: imagenes.length + i,
-      }));
+      const pendientes = files.map((file, i) => ({ id:null, pendingFile:file, localUrl:URL.createObjectURL(file), url:null, orden:imagenes.length+i }));
       onChange([...imagenes, ...pendientes]);
     }
     inputRef.current.value = '';
@@ -466,91 +459,126 @@ function GaleriaUploader({ sb, productoId, imagenes, onChange }) {
       await deleteImagenStorage(sb, img.url);
       if (img.id) await sb.from('producto_imagenes').delete().eq('id', img.id);
     }
-    const updated = imagenes.filter((_,i) => i !== idx)
-      .map((im, i) => ({...im, orden: i}));
-    onChange(updated);
+    onChange(imagenes.filter((_,i) => i !== idx).map((im,i) => ({...im, orden:i})));
   };
 
   return (
     <div>
-      {/* Galería */}
       {imagenes.length > 0 && (
-        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px, 1fr))', gap:'8px', marginBottom:'10px'}}>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(72px,1fr))', gap:'6px', marginBottom:'8px'}}>
           {imagenes.map((img, idx) => (
-            <div key={idx} style={{position:'relative', aspectRatio:'1', borderRadius:'8px', overflow:'hidden', border:'1px solid #e8e8e4'}}>
-              <img
-                src={img.localUrl || img.url}
-                alt=""
-                style={{width:'100%', height:'100%', objectFit:'cover', display:'block'}}
-              />
-              {/* Botón eliminar */}
-              <button
-                onClick={() => handleRemove(img, idx)}
-                style={{position:'absolute', top:'3px', right:'3px', background:'rgba(0,0,0,0.6)', color:'#fff', border:'none', borderRadius:'50%', width:'20px', height:'20px', cursor:'pointer', fontSize:'11px', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'700', lineHeight:1}}
-              >x</button>
-              {/* Botón descargar (solo imágenes ya subidas) */}
+            <div key={idx} style={{position:'relative', aspectRatio:'1', borderRadius:'7px', overflow:'hidden', border:'1px solid #e8e8e4'}}>
+              <img src={img.localUrl||img.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
+              <button onClick={() => handleRemove(img,idx)} style={{position:'absolute',top:'3px',right:'3px',background:'rgba(0,0,0,0.6)',color:'#fff',border:'none',borderRadius:'50%',width:'18px',height:'18px',cursor:'pointer',fontSize:'10px',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'700',lineHeight:1}}>x</button>
               {img.url && img.url.includes('supabase') && (
-                <a
-                  href={img.url} download target="_blank" rel="noreferrer"
-                  style={{position:'absolute', bottom:'3px', right:'3px', background:'rgba(0,0,0,0.5)', color:'#fff', borderRadius:'4px', width:'20px', height:'20px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'11px', textDecoration:'none'}}
-                  title="Descargar"
-                >&#11015;</a>
+                <a href={img.url} download target="_blank" rel="noreferrer" style={{position:'absolute',bottom:'3px',right:'3px',background:'rgba(0,0,0,0.5)',color:'#fff',borderRadius:'3px',width:'18px',height:'18px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',textDecoration:'none'}}>&#11015;</a>
               )}
-              {/* Indicador pendiente */}
-              {img.pendingFile && (
-                <div style={{position:'absolute', bottom:0, left:0, right:0, background:'rgba(0,0,0,0.45)', color:'#fff', fontSize:'9px', textAlign:'center', padding:'2px'}}>pendiente</div>
-              )}
-              {/* Número de orden */}
-              {imagenes.length > 1 && (
-                <div style={{position:'absolute', top:'3px', left:'3px', background:'rgba(0,0,0,0.45)', color:'#fff', fontSize:'9px', borderRadius:'3px', padding:'1px 4px'}}>{idx+1}</div>
-              )}
+              {imagenes.length > 1 && <div style={{position:'absolute',top:'3px',left:'3px',background:'rgba(0,0,0,0.45)',color:'#fff',fontSize:'9px',borderRadius:'3px',padding:'1px 3px'}}>{idx+1}</div>}
+              {img.pendingFile && <div style={{position:'absolute',bottom:0,left:0,right:0,background:'rgba(0,0,0,0.45)',color:'#fff',fontSize:'9px',textAlign:'center',padding:'2px'}}>pendiente</div>}
             </div>
           ))}
         </div>
       )}
-      {/* Zona de subida */}
-      <div
-        onClick={() => !uploading && inputRef.current.click()}
-        style={{border:'2px dashed #d0d0cc', borderRadius:'8px', padding:'14px', textAlign:'center', cursor: uploading ? 'default' : 'pointer', background:'#fafaf7', transition:'border-color 0.15s'}}
-        onMouseOver={e=>{ if(!uploading) e.currentTarget.style.borderColor='#1D9E75'; }}
-        onMouseOut={e=>e.currentTarget.style.borderColor='#d0d0cc'}
-      >
-        <div style={{fontSize:'18px', marginBottom:'4px'}}>&#128247;</div>
-        <div style={{fontSize:'12px', color:'#888'}}>
-          {uploading ? 'Subiendo...' : imagenes.length > 0 ? '+ Agregar más fotos' : 'Subir fotos del producto'}
-        </div>
-        <div style={{fontSize:'10px', color:'#bbb', marginTop:'2px'}}>JPG, PNG, WEBP — podés seleccionar varias</div>
+      <div onClick={() => !uploading && inputRef.current.click()} style={{border:'2px dashed #d0d0cc',borderRadius:'8px',padding:'12px',textAlign:'center',cursor:uploading?'default':'pointer',background:'#fafaf7'}} onMouseOver={e=>{if(!uploading)e.currentTarget.style.borderColor='#1D9E75';}} onMouseOut={e=>e.currentTarget.style.borderColor='#d0d0cc'}>
+        <div style={{fontSize:'16px',marginBottom:'3px'}}>&#128247;</div>
+        <div style={{fontSize:'11px',color:'#888'}}>{uploading?'Subiendo...' : imagenes.length>0?'+ Más fotos':'Subir fotos'}</div>
+        <div style={{fontSize:'10px',color:'#bbb',marginTop:'1px'}}>JPG PNG WEBP — múltiples</div>
       </div>
       <input ref={inputRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={handleFiles} />
     </div>
   );
 }
 
-function Productos({ sb, productos, prodImagenes, config, onRefresh }) {
-  const CATS   = config.categorias.length ? config.categorias : ['Billeteras','Carteras','Bolsos','Cinturones','Mochilas','Accesorios','Otros'];
-  const MARCAS = config.marcas.length ? config.marcas : ['Amayra','Footy','Chimola','Wanderlust','Lima'];
-  const [modal, setModal]       = useState(false);
-  const [editando, setEditando] = useState(null);
-  const [q, setQ]               = useState('');
-  const [imagenes, setImagenes] = useState([]); // imagenes del modal actual
-  const emptyForm = { nombre:'', categoria:'', marca:'', codigo_barras:'', descripcion:'', precio_costo:'', precio_venta:'', stock_actual:'', stock_minimo:'3' };
-  const [form, setForm]   = useState(emptyForm);
-  const [saving, setSaving] = useState(false);
+// ─── Historial de precios ─────────────────────────────────────────────────────
+function HistorialPrecios({ precios }) {
+  if (!precios.length) return <p style={{fontSize:'13px',color:'#aaa'}}>Sin historial de precios.</p>;
+  return (
+    <table>
+      <thead><tr><th>Fecha</th><th>Costo</th><th>Precio venta</th><th>Nota</th></tr></thead>
+      <tbody>
+        {precios.map(p => (
+          <tr key={p.id}>
+            <td style={{fontSize:'12px',color:'#666'}}>{new Date(p.fecha).toLocaleDateString('es-AR')}</td>
+            <td>${Number(p.precio_costo).toLocaleString('es-AR')}</td>
+            <td style={{fontWeight:'500'}}>${Number(p.precio_venta).toLocaleString('es-AR')}</td>
+            <td style={{fontSize:'12px',color:'#888'}}>{p.nota||'—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
-  const imagenesDeProducto = id => prodImagenes.filter(i => i.producto_id === id).sort((a,b) => a.orden - b.orden);
-  const miniatura = p => { const imgs = imagenesDeProducto(p.id); return imgs.length > 0 ? imgs[0].url : null; };
+// ─── Variantes ────────────────────────────────────────────────────────────────
+function VariantesEditor({ variantes, onChange }) {
+  const emptyVar = { color:'', talle:'', stock:0, codigo_barras:'' };
+
+  const add    = ()          => onChange([...variantes, {...emptyVar}]);
+  const remove = idx         => onChange(variantes.filter((_,i)=>i!==idx));
+  const update = (idx,f,val) => { const u=[...variantes]; u[idx]={...u[idx],[f]:val}; onChange(u); };
+
+  return (
+    <div>
+      {variantes.length > 0 && (
+        <div style={{marginBottom:'8px'}}>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 70px 1fr auto', gap:'6px', marginBottom:'4px', padding:'0 2px'}}>
+            {['Color','Talle','Stock','Cód. barras',''].map((h,i) => (
+              <div key={i} style={{fontSize:'10px',fontWeight:'600',color:'#888',textTransform:'uppercase',letterSpacing:'0.04em'}}>{h}</div>
+            ))}
+          </div>
+          {variantes.map((v, idx) => (
+            <div key={idx} style={{display:'grid', gridTemplateColumns:'1fr 1fr 70px 1fr auto', gap:'6px', marginBottom:'6px', alignItems:'center'}}>
+              <input value={v.color}         onChange={e=>update(idx,'color',e.target.value)}         placeholder="Negro, Rojo..." />
+              <input value={v.talle}         onChange={e=>update(idx,'talle',e.target.value)}         placeholder="S, M, 36..." />
+              <input type="number" min="0" value={v.stock} onChange={e=>update(idx,'stock',+e.target.value)} />
+              <input value={v.codigo_barras} onChange={e=>update(idx,'codigo_barras',e.target.value)} placeholder="Opcional" style={{fontFamily:'monospace'}} />
+              <button className="btn-danger" onClick={() => remove(idx)} style={{padding:'6px 8px'}}>x</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button className="btn-secondary btn-sm" onClick={add}>+ Agregar variante</button>
+    </div>
+  );
+}
+
+// ─── Componente principal Productos ──────────────────────────────────────────
+function Productos({ sb, productos, prodImagenes, prodPrecios, prodVariantes, config, onRefresh }) {
+  const CATS       = config.categorias.length  ? config.categorias  : ['Billeteras','Carteras','Bolsos','Cinturones','Mochilas','Accesorios','Otros'];
+  const MARCAS     = config.marcas.length      ? config.marcas      : ['Amayra','Footy','Chimola','Wanderlust','Lima'];
+  const PROVEEDORES = config.proveedores.length ? config.proveedores : [];
+
+  const [modal,    setModal]    = useState(false);
+  const [detalle,  setDetalle]  = useState(null); // producto para ver detalle/historial
+  const [editando, setEditando] = useState(null);
+  const [q,        setQ]        = useState('');
+  const [imagenes, setImagenes] = useState([]);
+  const [variantes,setVariantes]= useState([]);
+  const [detTab,   setDetTab]   = useState('variantes'); // tab en modal detalle
+  const emptyForm = { nombre:'', categoria:'', marca:'', proveedor:'', codigo_barras:'', descripcion:'', precio_costo:'', precio_venta:'', stock_actual:'', stock_minimo:'3' };
+  const [form,    setForm]   = useState(emptyForm);
+  const [saving,  setSaving] = useState(false);
+
+  const imagenesDeProducto  = id => prodImagenes.filter(i=>i.producto_id===id).sort((a,b)=>a.orden-b.orden);
+  const variantesDeProducto = id => prodVariantes.filter(v=>v.producto_id===id);
+  const preciosDeProducto   = id => prodPrecios.filter(p=>p.producto_id===id);
+  const miniatura           = p  => { const imgs=imagenesDeProducto(p.id); return imgs.length>0?imgs[0].url:null; };
+
+  // Stock total: si tiene variantes, suma sus stocks; si no, usa stock_actual
+  const stockTotal = p => {
+    const vars = variantesDeProducto(p.id);
+    return vars.length > 0 ? vars.reduce((s,v)=>s+Number(v.stock||0),0) : p.stock_actual;
+  };
 
   const openNew = () => {
-    setEditando(null);
-    setForm(emptyForm);
-    setImagenes([]);
-    setModal(true);
+    setEditando(null); setForm(emptyForm); setImagenes([]); setVariantes([]); setModal(true);
   };
 
   const openEdit = p => {
     setEditando(p);
-    setForm({nombre:p.nombre,categoria:p.categoria||'',marca:p.marca||'',codigo_barras:p.codigo_barras||'',descripcion:p.descripcion||'',precio_costo:p.precio_costo||'',precio_venta:p.precio_venta||'',stock_actual:p.stock_actual||'',stock_minimo:p.stock_minimo||'3'});
+    setForm({nombre:p.nombre,categoria:p.categoria||'',marca:p.marca||'',proveedor:p.proveedor||'',codigo_barras:p.codigo_barras||'',descripcion:p.descripcion||'',precio_costo:p.precio_costo||'',precio_venta:p.precio_venta||'',stock_actual:p.stock_actual||'',stock_minimo:p.stock_minimo||'3'});
     setImagenes(imagenesDeProducto(p.id));
+    setVariantes(variantesDeProducto(p.id).map(v=>({...v})));
     setModal(true);
   };
 
@@ -558,8 +586,9 @@ function Productos({ sb, productos, prodImagenes, config, onRefresh }) {
     if (!form.nombre.trim()) return;
     setSaving(true);
     try {
+      const precioChanged = editando && (Number(form.precio_costo)!==Number(editando.precio_costo) || Number(form.precio_venta)!==Number(editando.precio_venta));
       const d = {
-        nombre:form.nombre, categoria:form.categoria, marca:form.marca,
+        nombre:form.nombre, categoria:form.categoria, marca:form.marca, proveedor:form.proveedor,
         codigo_barras:form.codigo_barras||null, descripcion:form.descripcion,
         precio_costo:+form.precio_costo||0, precio_venta:+form.precio_venta||0,
         stock_actual:+form.stock_actual||0, stock_minimo:+form.stock_minimo||3,
@@ -569,30 +598,56 @@ function Productos({ sb, productos, prodImagenes, config, onRefresh }) {
 
       if (editando) {
         await sb.from('productos').update(d).eq('id', editando.id);
+        // Registrar cambio de precio si hubo
+        if (precioChanged) {
+          await sb.from('producto_precios').insert([{
+            producto_id: editando.id,
+            precio_costo: +form.precio_costo||0,
+            precio_venta: +form.precio_venta||0,
+            nota: 'Actualización manual',
+          }]);
+        }
       } else {
         const { data: nuevo, error } = await sb.from('productos').insert([d]).select().single();
         if (error) throw error;
         productoId = nuevo.id;
+        // Registrar precio inicial
+        await sb.from('producto_precios').insert([{
+          producto_id: productoId,
+          precio_costo: +form.precio_costo||0,
+          precio_venta: +form.precio_venta||0,
+          nota: 'Precio inicial',
+        }]);
       }
 
-      // Subir imágenes pendientes (solo para producto nuevo o drag-drop en existente)
+      // Imágenes pendientes
       const pendientes = imagenes.filter(i => i.pendingFile);
       for (const img of pendientes) {
         const { url } = await uploadImagen(sb, img.pendingFile, productoId);
         await sb.from('producto_imagenes').insert([{ producto_id: productoId, url, orden: img.orden }]);
       }
-    } catch(err) {
-      alert('Error al guardar: ' + err.message);
-    }
+
+      // Variantes: borrar las existentes y reinsertar
+      if (productoId) {
+        await sb.from('producto_variantes').delete().eq('producto_id', productoId);
+        if (variantes.length > 0) {
+          await sb.from('producto_variantes').insert(
+            variantes.map(v => ({
+              producto_id: productoId,
+              color: v.color||null, talle: v.talle||null,
+              stock: +v.stock||0, codigo_barras: v.codigo_barras||null,
+            }))
+          );
+        }
+      }
+    } catch(err) { alert('Error al guardar: ' + err.message); }
     setSaving(false); setModal(false); onRefresh();
   };
 
   const del = async id => {
-    if (!confirm('Eliminar producto y todas sus imagenes?')) return;
-    // Eliminar imagenes del storage
+    if (!confirm('Eliminar producto, variantes e imagenes?')) return;
     const imgs = imagenesDeProducto(id);
     for (const img of imgs) await deleteImagenStorage(sb, img.url);
-    // Las filas de producto_imagenes se borran en cascada
     await sb.from('productos').delete().eq('id', id);
     onRefresh();
   };
@@ -606,6 +661,7 @@ function Productos({ sb, productos, prodImagenes, config, onRefresh }) {
     p.nombre.toLowerCase().includes(q.toLowerCase()) ||
     (p.categoria||'').toLowerCase().includes(q.toLowerCase()) ||
     (p.marca||'').toLowerCase().includes(q.toLowerCase()) ||
+    (p.proveedor||'').toLowerCase().includes(q.toLowerCase()) ||
     (p.codigo_barras||'').includes(q)
   );
 
@@ -616,54 +672,69 @@ function Productos({ sb, productos, prodImagenes, config, onRefresh }) {
         <button className="btn-primary" onClick={openNew}>+ Nuevo producto</button>
       </div>
       <div style={{marginBottom:'1rem'}}>
-        <input placeholder="Buscar por nombre, marca, categoria o cod. barras..." value={q} onChange={e=>setQ(e.target.value)} style={{maxWidth:'380px'}} />
+        <input placeholder="Buscar por nombre, marca, proveedor, categoria o cod. barras..." value={q} onChange={e=>setQ(e.target.value)} style={{maxWidth:'420px'}} />
       </div>
+
       <div className="card" style={{padding:0, overflow:'hidden'}}>
         {filtrados.length === 0
-          ? <div className="empty-state"><div style={{fontSize:'32px', marginBottom:'8px'}}>&#128230;</div>No hay productos.</div>
+          ? <div className="empty-state"><div style={{fontSize:'32px',marginBottom:'8px'}}>&#128230;</div>No hay productos.</div>
           : <table>
-              <thead><tr><th>Producto</th><th>Marca</th><th>Cod. barras</th><th>Costo</th><th>Precio</th><th>Margen</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+              <thead>
+                <tr><th>Producto</th><th>Marca / Prov.</th><th>Cod. barras</th><th>Costo</th><th>Precio</th><th>Margen</th><th>Stock</th><th>Estado</th><th></th></tr>
+              </thead>
               <tbody>
                 {filtrados.map(p => {
-                  const margen  = p.precio_venta > 0 ? Math.round((p.precio_venta - p.precio_costo) / p.precio_venta * 100) : 0;
-                  const st      = p.stock_actual === 0 ? 'tag-none' : p.stock_actual <= p.stock_minimo ? 'tag-low' : 'tag-ok';
-                  const stLabel = p.stock_actual === 0 ? 'Sin stock' : p.stock_actual <= p.stock_minimo ? 'Bajo' : 'OK';
+                  const margen  = p.precio_venta > 0 ? Math.round((p.precio_venta-p.precio_costo)/p.precio_venta*100) : 0;
+                  const stock   = stockTotal(p);
+                  const st      = stock===0 ? 'tag-none' : stock<=p.stock_minimo ? 'tag-low' : 'tag-ok';
+                  const stLabel = stock===0 ? 'Sin stock' : stock<=p.stock_minimo ? 'Bajo' : 'OK';
                   const thumb   = miniatura(p);
                   const nImgs   = imagenesDeProducto(p.id).length;
+                  const nVars   = variantesDeProducto(p.id).length;
                   return (
                     <tr key={p.id}>
                       <td>
                         <div style={{display:'flex', alignItems:'center', gap:'9px'}}>
                           <div style={{position:'relative', flexShrink:0}}>
                             {thumb
-                              ? <img src={thumb} alt="" style={{width:'38px', height:'38px', objectFit:'cover', borderRadius:'6px', border:'1px solid #e8e8e4', display:'block'}} />
-                              : <div style={{width:'38px', height:'38px', background:'#f0f0ec', borderRadius:'6px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px'}}>&#128230;</div>
+                              ? <img src={thumb} alt="" style={{width:'38px',height:'38px',objectFit:'cover',borderRadius:'6px',border:'1px solid #e8e8e4',display:'block'}} />
+                              : <div style={{width:'38px',height:'38px',background:'#f0f0ec',borderRadius:'6px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'16px'}}>&#128230;</div>
                             }
-                            {nImgs > 1 && (
-                              <div style={{position:'absolute', bottom:'-4px', right:'-4px', background:'#378ADD', color:'#fff', fontSize:'9px', fontWeight:'700', borderRadius:'10px', padding:'1px 4px', border:'1px solid #fff'}}>{nImgs}</div>
-                            )}
+                            {nImgs > 1 && <div style={{position:'absolute',bottom:'-4px',right:'-4px',background:'#378ADD',color:'#fff',fontSize:'9px',fontWeight:'700',borderRadius:'10px',padding:'1px 4px',border:'1px solid #fff'}}>{nImgs}</div>}
                           </div>
                           <div>
                             <div style={{fontWeight:'500'}}>{p.nombre}</div>
-                            {p.categoria && <div style={{fontSize:'11px', color:'#999'}}>{p.categoria}</div>}
+                            <div style={{display:'flex', gap:'4px', flexWrap:'wrap', marginTop:'2px'}}>
+                              {p.categoria && <span style={{fontSize:'10px',color:'#999'}}>{p.categoria}</span>}
+                              {nVars > 0 && <span style={{fontSize:'10px',background:'#EEEDFE',color:'#534AB7',padding:'1px 5px',borderRadius:'8px',fontWeight:'500'}}>{nVars} var.</span>}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td>{p.marca ? <span className="badge badge-blue">{p.marca}</span> : <span style={{color:'#ccc'}}>-</span>}</td>
-                      <td style={{fontSize:'12px', fontFamily:'monospace', color:'#666'}}>{p.codigo_barras || <span style={{color:'#ccc'}}>-</span>}</td>
-                      <td>${Number(p.precio_costo).toLocaleString('es-AR')}</td>
-                      <td style={{fontWeight:'500'}}>${Number(p.precio_venta).toLocaleString('es-AR')}</td>
-                      <td style={{color: margen>30?'#0F6E56':margen>10?'#854F0B':'#A32D2D', fontWeight:'500'}}>{margen}%</td>
                       <td>
-                        <div style={{display:'flex', alignItems:'center', gap:'5px'}}>
-                          <button style={{background:'#f5f5f2', border:'1px solid #ddd', borderRadius:'5px', width:'22px', height:'22px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'600'}} onClick={() => ajustar(p,-1)}>-</button>
-                          <span style={{fontWeight:'600', minWidth:'22px', textAlign:'center'}}>{p.stock_actual}</span>
-                          <button style={{background:'#f5f5f2', border:'1px solid #ddd', borderRadius:'5px', width:'22px', height:'22px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'600'}} onClick={() => ajustar(p,1)}>+</button>
+                        <div style={{display:'flex', flexDirection:'column', gap:'2px'}}>
+                          {p.marca && <span className="badge badge-blue">{p.marca}</span>}
+                          {p.proveedor && <span style={{fontSize:'11px',color:'#888'}}>{p.proveedor}</span>}
                         </div>
                       </td>
-                      <td><span className={'tag ' + st}>{stLabel}</span></td>
+                      <td style={{fontSize:'12px',fontFamily:'monospace',color:'#666'}}>{p.codigo_barras||<span style={{color:'#ccc'}}>—</span>}</td>
+                      <td>${Number(p.precio_costo).toLocaleString('es-AR')}</td>
+                      <td style={{fontWeight:'500'}}>${Number(p.precio_venta).toLocaleString('es-AR')}</td>
+                      <td style={{color:margen>30?'#0F6E56':margen>10?'#854F0B':'#A32D2D',fontWeight:'500'}}>{margen}%</td>
                       <td>
-                        <div style={{display:'flex', gap:'5px'}}>
+                        {nVars > 0
+                          ? <span style={{fontWeight:'600'}}>{stock}</span>
+                          : <div style={{display:'flex',alignItems:'center',gap:'5px'}}>
+                              <button style={{background:'#f5f5f2',border:'1px solid #ddd',borderRadius:'5px',width:'22px',height:'22px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'600'}} onClick={() => ajustar(p,-1)}>-</button>
+                              <span style={{fontWeight:'600',minWidth:'22px',textAlign:'center'}}>{p.stock_actual}</span>
+                              <button style={{background:'#f5f5f2',border:'1px solid #ddd',borderRadius:'5px',width:'22px',height:'22px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'600'}} onClick={() => ajustar(p,1)}>+</button>
+                            </div>
+                        }
+                      </td>
+                      <td><span className={'tag '+st}>{stLabel}</span></td>
+                      <td>
+                        <div style={{display:'flex',gap:'5px'}}>
+                          <button className="btn-secondary btn-sm" onClick={() => { setDetalle(p); setDetTab('variantes'); }}>Ver</button>
                           <button className="btn-secondary btn-sm" onClick={() => openEdit(p)}>Editar</button>
                           <button className="btn-danger" onClick={() => del(p.id)}>x</button>
                         </div>
@@ -676,66 +747,141 @@ function Productos({ sb, productos, prodImagenes, config, onRefresh }) {
         }
       </div>
 
+      {/* ── Modal edición ── */}
       {modal && (
         <div className="modal-bg">
-          <div className="modal-box" style={{maxWidth:'560px'}}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem'}}>
-              <span style={{fontWeight:'600', fontSize:'15px'}}>{editando?'Editar producto':'Nuevo producto'}</span>
-              <button style={{background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#999', lineHeight:1}} onClick={() => setModal(false)}>x</button>
+          <div className="modal-box" style={{maxWidth:'620px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
+              <span style={{fontWeight:'600',fontSize:'15px'}}>{editando?'Editar producto':'Nuevo producto'}</span>
+              <button style={{background:'none',border:'none',fontSize:'20px',cursor:'pointer',color:'#999',lineHeight:1}} onClick={() => setModal(false)}>x</button>
             </div>
 
-            <div className="form-row">
-              <div style={{display:'flex', flexDirection:'column', gap:'12px'}}>
-                <div className="form-group" style={{marginBottom:0}}>
-                  <label className="form-label">Nombre *</label>
-                  <input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Ej: Billetera marron cuero" />
+            {/* Fila superior: campos + galería */}
+            <div className="form-row" style={{marginBottom:'14px'}}>
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                <div><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Ej: Billetera marron cuero" /></div>
+                <div className="form-row">
+                  <div><label className="form-label">Marca</label>
+                    <select value={form.marca} onChange={e=>setForm({...form,marca:e.target.value})}>
+                      <option value="">Sin marca</option>{MARCAS.map(m=><option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="form-label">Proveedor</label>
+                    <select value={form.proveedor} onChange={e=>setForm({...form,proveedor:e.target.value})}>
+                      <option value="">Sin proveedor</option>{PROVEEDORES.map(p=><option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div className="form-group" style={{marginBottom:0}}>
-                  <label className="form-label">Marca</label>
-                  <select value={form.marca} onChange={e=>setForm({...form,marca:e.target.value})}>
-                    <option value="">Sin marca</option>
-                    {MARCAS.map(m=><option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{marginBottom:0}}>
-                  <label className="form-label">Categoria</label>
-                  <select value={form.categoria} onChange={e=>setForm({...form,categoria:e.target.value})}>
-                    <option value="">Sin categoria</option>
-                    {CATS.map(c=><option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div className="form-group" style={{marginBottom:0}}>
-                  <label className="form-label">Cod. de barras</label>
-                  <input value={form.codigo_barras} onChange={e=>setForm({...form,codigo_barras:e.target.value})} placeholder="Escanear o escribir" style={{fontFamily:'monospace'}} />
+                <div className="form-row">
+                  <div><label className="form-label">Categoría</label>
+                    <select value={form.categoria} onChange={e=>setForm({...form,categoria:e.target.value})}>
+                      <option value="">Sin categoría</option>{CATS.map(c=><option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="form-label">Cód. de barras</label>
+                    <input value={form.codigo_barras} onChange={e=>setForm({...form,codigo_barras:e.target.value})} placeholder="Escanear o escribir" style={{fontFamily:'monospace'}} />
+                  </div>
                 </div>
               </div>
-
-              <div className="form-group" style={{marginBottom:0}}>
-                <label className="form-label">Fotos ({imagenes.length})</label>
-                <GaleriaUploader
-                  sb={sb}
-                  productoId={editando ? editando.id : null}
-                  imagenes={imagenes}
-                  onChange={setImagenes}
-                />
+              <div><label className="form-label">Fotos ({imagenes.length})</label>
+                <GaleriaUploader sb={sb} productoId={editando?editando.id:null} imagenes={imagenes} onChange={setImagenes} />
               </div>
             </div>
 
             <div className="divider" />
 
-            <div className="form-group"><label className="form-label">Descripcion</label><input value={form.descripcion} onChange={e=>setForm({...form,descripcion:e.target.value})} placeholder="Color, material, talle, etc." /></div>
+            {/* Descripción + precios + stock */}
+            <div className="form-group"><label className="form-label">Descripción</label><input value={form.descripcion} onChange={e=>setForm({...form,descripcion:e.target.value})} placeholder="Color, material, talle, etc." /></div>
             <div className="form-row">
               <div className="form-group"><label className="form-label">Costo ($)</label><input type="number" value={form.precio_costo} onChange={e=>setForm({...form,precio_costo:e.target.value})} placeholder="0" /></div>
               <div className="form-group"><label className="form-label">Precio venta ($)</label><input type="number" value={form.precio_venta} onChange={e=>setForm({...form,precio_venta:e.target.value})} placeholder="0" /></div>
             </div>
             <div className="form-row">
-              <div className="form-group"><label className="form-label">Stock actual</label><input type="number" value={form.stock_actual} onChange={e=>setForm({...form,stock_actual:e.target.value})} placeholder="0" /></div>
-              <div className="form-group"><label className="form-label">Stock minimo (alerta)</label><input type="number" value={form.stock_minimo} onChange={e=>setForm({...form,stock_minimo:e.target.value})} placeholder="3" /></div>
+              <div className="form-group"><label className="form-label">Stock actual</label><input type="number" value={form.stock_actual} onChange={e=>setForm({...form,stock_actual:e.target.value})} placeholder="0" disabled={variantes.length>0} style={{opacity:variantes.length>0?0.5:1}} /></div>
+              <div className="form-group"><label className="form-label">Stock mínimo (alerta)</label><input type="number" value={form.stock_minimo} onChange={e=>setForm({...form,stock_minimo:e.target.value})} placeholder="3" /></div>
             </div>
-            <div style={{display:'flex', gap:'8px', justifyContent:'flex-end', marginTop:'4px'}}>
+            {variantes.length > 0 && <p style={{fontSize:'11px',color:'#888',marginTop:'-10px',marginBottom:'12px'}}>El stock total se calcula sumando el stock de cada variante.</p>}
+
+            <div className="divider" />
+
+            {/* Variantes */}
+            <div style={{marginBottom:'14px'}}>
+              <label className="form-label" style={{marginBottom:'8px'}}>Variantes (color / talle)</label>
+              <VariantesEditor variantes={variantes} onChange={setVariantes} />
+            </div>
+
+            <div style={{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'4px'}}>
               <button className="btn-secondary" onClick={() => setModal(false)}>Cancelar</button>
               <button className="btn-primary" onClick={save} disabled={saving}>{saving?'Guardando...':'Guardar'}</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal detalle / historial ── */}
+      {detalle && (
+        <div className="modal-bg">
+          <div className="modal-box" style={{maxWidth:'560px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                {miniatura(detalle) && <img src={miniatura(detalle)} alt="" style={{width:'40px',height:'40px',objectFit:'cover',borderRadius:'7px',border:'1px solid #e8e8e4'}} />}
+                <div>
+                  <div style={{fontWeight:'600',fontSize:'15px'}}>{detalle.nombre}</div>
+                  <div style={{fontSize:'12px',color:'#888'}}>
+                    {detalle.marca && <span className="badge badge-blue" style={{marginRight:'5px'}}>{detalle.marca}</span>}
+                    {detalle.proveedor && <span style={{color:'#666'}}>{detalle.proveedor}</span>}
+                  </div>
+                </div>
+              </div>
+              <button style={{background:'none',border:'none',fontSize:'20px',cursor:'pointer',color:'#999',lineHeight:1}} onClick={() => setDetalle(null)}>x</button>
+            </div>
+
+            {/* Tabs */}
+            <div style={{display:'flex',gap:'4px',borderBottom:'1px solid #e8e8e4',marginBottom:'1rem'}}>
+              {[['variantes','Variantes'],['historial','Historial precios'],['fotos','Fotos']].map(([id,label]) => (
+                <button key={id} onClick={() => setDetTab(id)} style={{padding:'6px 14px',fontSize:'12px',fontWeight:'500',border:'none',borderRadius:'6px 6px 0 0',background:'transparent',cursor:'pointer',color:detTab===id?'#0F6E56':'#888',borderBottom:detTab===id?'2px solid #1D9E75':'2px solid transparent'}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {detTab === 'variantes' && (() => {
+              const vars = variantesDeProducto(detalle.id);
+              return vars.length === 0
+                ? <p style={{fontSize:'13px',color:'#aaa'}}>Sin variantes. Este producto tiene stock único.</p>
+                : <table>
+                    <thead><tr><th>Color</th><th>Talle</th><th>Stock</th><th>Cód. barras</th></tr></thead>
+                    <tbody>
+                      {vars.map(v => (
+                        <tr key={v.id}>
+                          <td>{v.color||<span style={{color:'#ccc'}}>—</span>}</td>
+                          <td>{v.talle||<span style={{color:'#ccc'}}>—</span>}</td>
+                          <td><span style={{fontWeight:'600',color:v.stock===0?'#A32D2D':v.stock<=3?'#854F0B':'inherit'}}>{v.stock}</span></td>
+                          <td style={{fontSize:'11px',fontFamily:'monospace',color:'#888'}}>{v.codigo_barras||<span style={{color:'#ccc'}}>—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr><td colSpan={2} style={{fontWeight:'600',fontSize:'13px',paddingTop:'8px'}}>Total</td><td style={{fontWeight:'600',paddingTop:'8px'}}>{vars.reduce((s,v)=>s+Number(v.stock||0),0)}</td><td></td></tr>
+                    </tfoot>
+                  </table>;
+            })()}
+
+            {detTab === 'historial' && <HistorialPrecios precios={preciosDeProducto(detalle.id)} />}
+
+            {detTab === 'fotos' && (() => {
+              const imgs = imagenesDeProducto(detalle.id);
+              return imgs.length === 0
+                ? <p style={{fontSize:'13px',color:'#aaa'}}>Sin fotos.</p>
+                : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))',gap:'8px'}}>
+                    {imgs.map(img => (
+                      <div key={img.id} style={{position:'relative',aspectRatio:'1',borderRadius:'8px',overflow:'hidden',border:'1px solid #e8e8e4'}}>
+                        <img src={img.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
+                        <a href={img.url} download target="_blank" rel="noreferrer" style={{position:'absolute',bottom:'4px',right:'4px',background:'rgba(0,0,0,0.55)',color:'#fff',borderRadius:'4px',padding:'3px 6px',fontSize:'11px',textDecoration:'none'}}>&#11015;</a>
+                      </div>
+                    ))}
+                  </div>;
+            })()}
           </div>
         </div>
       )}
