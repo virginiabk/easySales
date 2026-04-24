@@ -201,6 +201,7 @@ function App() {
     {id:'ventas',      icon:'💰', label:'Ventas'},
     {id:'compras',     icon:'🛒', label:'Compras'},
     {id:'clientes',    icon:'👥', label:'Clientes'},
+    {id:'reportes',      icon:'📈', label:'Reportes'},
     {id:'configuracion',icon:'⚙️', label:'Configuración'},
   ];
 
@@ -244,6 +245,7 @@ function App() {
             {section === 'clientes'     && <ClientesView sb={sb} clientes={clientes} ventas={ventas} onRefresh={() => load()} />}
             {section === 'configuracion'&& <Configuracion sb={sb} config={config} onRefresh={() => load()} />}
             {section === 'search'       && <BusquedaGlobal q={globalSearch} productos={productos} clientes={clientes} ventas={ventas} compras={compras} onNavigate={(sec) => { setGlobalSearch(''); setSection(sec); }} />}
+            {section === 'reportes'     && <Reportes ventas={ventas} vitems={vitems} productos={productos} />}
           </>
         )}
       </div>
@@ -2010,6 +2012,307 @@ function Compras({ sb, compras, compraItems, productos, config, onRefresh }) {
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+// ─── Reportes ─────────────────────────────────────────────────────────────────
+function Reportes({ ventas, vitems, productos }) {
+  const hoy = new Date();
+  const [desde, setDesde] = useState(() => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [hasta, setHasta] = useState(() => {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    return d.toISOString().split('T')[0];
+  });
+  const [agrupar, setAgrupar] = useState('marca'); // 'marca' | 'categoria'
+
+  // Ventas filtradas por rango
+  const ventasFilt = React.useMemo(() => {
+    const d0 = new Date(desde + 'T00:00:00');
+    const d1 = new Date(hasta + 'T23:59:59');
+    return ventas.filter(v => { const f = new Date(v.fecha); return f >= d0 && f <= d1; });
+  }, [ventas, desde, hasta]);
+
+  const ventaIds = new Set(ventasFilt.map(v => v.id));
+  const itemsFilt = vitems.filter(i => ventaIds.has(i.venta_id));
+
+  // ── Ranking de productos ──────────────────────────────────────────────────
+  const rankingProductos = React.useMemo(() => {
+    const map = {};
+    for (const item of itemsFilt) {
+      if (!item.producto_id) continue;
+      if (!map[item.producto_id]) map[item.producto_id] = { cantidad: 0, revenue: 0, ganancia: 0 };
+      map[item.producto_id].cantidad  += Number(item.cantidad || 0);
+      map[item.producto_id].revenue   += Number(item.precio_unitario || 0) * Number(item.cantidad || 0);
+      map[item.producto_id].ganancia  += (Number(item.precio_unitario || 0) - Number(item.costo_unitario || 0)) * Number(item.cantidad || 0);
+    }
+    return Object.entries(map)
+      .map(([id, d]) => ({ producto: productos.find(p => p.id === id), ...d }))
+      .filter(r => r.producto)
+      .sort((a, b) => b.cantidad - a.cantidad);
+  }, [itemsFilt, productos]);
+
+  const maxCantidad = rankingProductos[0]?.cantidad || 1;
+
+  // ── Ganancia por grupo (marca / categoria) ────────────────────────────────
+  const porGrupo = React.useMemo(() => {
+    const map = {};
+    for (const item of itemsFilt) {
+      const prod = productos.find(p => p.id === item.producto_id);
+      const key  = (prod ? (agrupar === 'marca' ? prod.marca : prod.categoria) : null) || 'Sin ' + agrupar;
+      if (!map[key]) map[key] = { revenue: 0, ganancia: 0, cantidad: 0 };
+      map[key].revenue  += Number(item.precio_unitario || 0) * Number(item.cantidad || 0);
+      map[key].ganancia += (Number(item.precio_unitario || 0) - Number(item.costo_unitario || 0)) * Number(item.cantidad || 0);
+      map[key].cantidad += Number(item.cantidad || 0);
+    }
+    return Object.entries(map)
+      .map(([key, d]) => ({ key, ...d }))
+      .sort((a, b) => b.ganancia - a.ganancia);
+  }, [itemsFilt, productos, agrupar]);
+
+  const maxGananciaGrupo = porGrupo[0]?.ganancia || 1;
+
+  // ── Evolución mensual ─────────────────────────────────────────────────────
+  const evolucion = React.useMemo(() => {
+    // generar todos los meses en el rango
+    const meses = [];
+    const d0 = new Date(desde + 'T00:00:00');
+    const d1 = new Date(hasta + 'T23:59:59');
+    let cur = new Date(d0.getFullYear(), d0.getMonth(), 1);
+    while (cur <= d1) {
+      meses.push({ year: cur.getFullYear(), month: cur.getMonth(), revenue: 0, ganancia: 0, count: 0 });
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+    }
+    for (const v of ventasFilt) {
+      const f = new Date(v.fecha);
+      const m = meses.find(m => m.year === f.getFullYear() && m.month === f.getMonth());
+      if (m) { m.revenue += Number(v.total || 0); m.ganancia += Number(v.ganancia || 0); m.count++; }
+    }
+    return meses;
+  }, [ventasFilt, desde, hasta]);
+
+  const maxRevMes = Math.max(...evolucion.map(m => m.revenue), 1);
+
+  // ── Colores para grupos ───────────────────────────────────────────────────
+  const PALETA = ['#1D9E75','#378ADD','#EF9F27','#7F77DD','#E24B4A','#639922','#854F0B','#185FA5'];
+  const colorFor = idx => PALETA[idx % PALETA.length];
+
+  const fmtMes = (year, month) => new Date(year, month, 1).toLocaleDateString('es-AR', { month:'short', year:'2-digit' });
+  const fmtM   = (year, month) => new Date(year, month, 1).toLocaleDateString('es-AR', { month:'short' });
+
+  const totalRevenue  = ventasFilt.reduce((s,v) => s + Number(v.total||0), 0);
+  const totalGanancia = ventasFilt.reduce((s,v) => s + Number(v.ganancia||0), 0);
+  const totalUnidades = itemsFilt.reduce((s,i) => s + Number(i.cantidad||0), 0);
+
+  return (
+    <div>
+      {/* Header + filtros */}
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.5rem', flexWrap:'wrap', gap:'12px'}}>
+        <h1 style={{fontSize:'19px', fontWeight:'600'}}>Reportes</h1>
+        <div style={{display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap'}}>
+          <span style={{fontSize:'12px', color:'#888'}}>Período:</span>
+          <input type="date" value={desde} onChange={e=>setDesde(e.target.value)} style={{width:'auto', fontSize:'12px', padding:'6px 10px'}} />
+          <span style={{fontSize:'12px', color:'#888'}}>→</span>
+          <input type="date" value={hasta} onChange={e=>setHasta(e.target.value)} style={{width:'auto', fontSize:'12px', padding:'6px 10px'}} />
+        </div>
+      </div>
+
+      {/* KPIs del período */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:'10px', marginBottom:'1.5rem'}}>
+        <div className="metric"><div className="metric-label">Ventas</div><div className="metric-value">{ventasFilt.length}</div></div>
+        <div className="metric"><div className="metric-label">Facturado</div><div className="metric-value" style={{fontSize:'17px'}}>${totalRevenue.toLocaleString('es-AR')}</div></div>
+        <div className="metric"><div className="metric-label">Ganancia</div><div className="metric-value" style={{fontSize:'17px', color:'#0F6E56'}}>${totalGanancia.toLocaleString('es-AR')}</div></div>
+        <div className="metric"><div className="metric-label">Unidades</div><div className="metric-value">{totalUnidades}</div></div>
+        <div className="metric">
+          <div className="metric-label">Margen</div>
+          <div className="metric-value" style={{fontSize:'17px', color: totalRevenue>0 && (totalGanancia/totalRevenue)>0.3 ? '#0F6E56' : '#854F0B'}}>
+            {totalRevenue > 0 ? Math.round(totalGanancia / totalRevenue * 100) : 0}%
+          </div>
+        </div>
+      </div>
+
+      {/* Evolución mensual */}
+      <div className="card" style={{marginBottom:'1.25rem'}}>
+        <div style={{fontWeight:'600', fontSize:'14px', marginBottom:'1.25rem'}}>Evolución mensual</div>
+        {evolucion.length === 0
+          ? <p style={{fontSize:'13px',color:'#aaa'}}>Sin datos en el período.</p>
+          : <div>
+              {/* SVG chart */}
+              <div style={{overflowX:'auto'}}>
+                <svg viewBox={`0 0 ${Math.max(evolucion.length * 72, 400)} 180`} style={{width:'100%', minWidth:'360px', display:'block'}}>
+                  {/* Grid lines */}
+                  {[0,0.25,0.5,0.75,1].map(t => {
+                    const y = 20 + (1-t) * 130;
+                    return (
+                      <g key={t}>
+                        <line x1="40" y1={y} x2={Math.max(evolucion.length*72,400)-10} y2={y} stroke="#e8e8e4" strokeWidth="1" />
+                        <text x="36" y={y+4} textAnchor="end" fontSize="9" fill="#bbb">${Math.round(maxRevMes*t/1000)}k</text>
+                      </g>
+                    );
+                  })}
+                  {/* Bars */}
+                  {evolucion.map((m, i) => {
+                    const barW  = 26;
+                    const gap   = 72;
+                    const x     = 44 + i * gap;
+                    const hRev  = m.revenue  > 0 ? Math.max(4, (m.revenue  / maxRevMes) * 130) : 0;
+                    const hGan  = m.ganancia > 0 ? Math.max(3, (m.ganancia / maxRevMes) * 130) : 0;
+                    const yRev  = 150 - hRev;
+                    const yGan  = 150 - hGan;
+                    return (
+                      <g key={i}>
+                        {/* Revenue bar */}
+                        <rect x={x} y={yRev} width={barW} height={hRev} fill="#C8E8F5" rx="3" />
+                        {/* Ganancia bar (overlay) */}
+                        <rect x={x+3} y={yGan} width={barW-6} height={hGan} fill="#1D9E75" rx="2" />
+                        {/* Label */}
+                        <text x={x + barW/2} y="165" textAnchor="middle" fontSize="9" fill="#999">{fmtM(m.year,m.month)}</text>
+                        {/* Count */}
+                        {m.count > 0 && <text x={x + barW/2} y={yRev - 4} textAnchor="middle" fontSize="8" fill="#888">{m.count}</text>}
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+              {/* Leyenda */}
+              <div style={{display:'flex', gap:'16px', justifyContent:'flex-end', fontSize:'11px', color:'#888', marginTop:'4px'}}>
+                <span><span style={{display:'inline-block',width:'10px',height:'10px',background:'#C8E8F5',borderRadius:'2px',marginRight:'4px',verticalAlign:'middle'}}/>Facturado</span>
+                <span><span style={{display:'inline-block',width:'10px',height:'10px',background:'#1D9E75',borderRadius:'2px',marginRight:'4px',verticalAlign:'middle'}}/>Ganancia</span>
+              </div>
+              {/* Tabla resumen mensual */}
+              <table style={{marginTop:'1rem'}}>
+                <thead><tr><th>Mes</th><th>Ventas</th><th>Facturado</th><th>Ganancia</th><th>Margen</th></tr></thead>
+                <tbody>
+                  {[...evolucion].reverse().filter(m=>m.count>0).map((m,i) => {
+                    const margen = m.revenue > 0 ? Math.round(m.ganancia/m.revenue*100) : 0;
+                    return (
+                      <tr key={i}>
+                        <td style={{fontWeight:'500'}}>{fmtMes(m.year,m.month)}</td>
+                        <td>{m.count}</td>
+                        <td>${m.revenue.toLocaleString('es-AR')}</td>
+                        <td style={{color:'#0F6E56'}}>${m.ganancia.toLocaleString('es-AR')}</td>
+                        <td style={{color:margen>30?'#0F6E56':margen>10?'#854F0B':'#A32D2D',fontWeight:'500'}}>{margen}%</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+        }
+      </div>
+
+      {/* Ganancia por marca / categoría */}
+      <div className="card" style={{marginBottom:'1.25rem'}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem'}}>
+          <div style={{fontWeight:'600', fontSize:'14px'}}>Ganancia por {agrupar}</div>
+          <div style={{display:'flex', background:'#f0f0ec', borderRadius:'8px', padding:'3px', gap:'2px'}}>
+            {[['marca','Marca'],['categoria','Categoría']].map(([v,l]) => (
+              <button key={v} onClick={() => setAgrupar(v)} style={{
+                padding:'4px 12px', fontSize:'12px', fontWeight:'500', border:'none', borderRadius:'6px',
+                background: agrupar===v ? '#fff' : 'transparent',
+                color: agrupar===v ? '#1a1a18' : '#888',
+                boxShadow: agrupar===v ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                cursor:'pointer', transition:'all 0.15s'
+              }}>{l}</button>
+            ))}
+          </div>
+        </div>
+        {porGrupo.length === 0
+          ? <p style={{fontSize:'13px',color:'#aaa'}}>Sin datos en el período.</p>
+          : <div style={{display:'flex', flexDirection:'column', gap:'10px'}}>
+              {porGrupo.map((g, i) => {
+                const pct     = Math.round(g.ganancia / maxGananciaGrupo * 100);
+                const margen  = g.revenue > 0 ? Math.round(g.ganancia / g.revenue * 100) : 0;
+                const color   = colorFor(i);
+                return (
+                  <div key={g.key}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px', fontSize:'13px'}}>
+                      <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                        <span style={{width:'10px',height:'10px',borderRadius:'50%',background:color,display:'inline-block',flexShrink:0}}/>
+                        <span style={{fontWeight:'500'}}>{g.key}</span>
+                        <span style={{color:'#aaa', fontSize:'11px'}}>{g.cantidad} uds</span>
+                      </div>
+                      <div style={{display:'flex', alignItems:'center', gap:'12px', textAlign:'right'}}>
+                        <span style={{color:'#888', fontSize:'12px'}}>${g.revenue.toLocaleString('es-AR')}</span>
+                        <span style={{fontWeight:'600', color}}>${g.ganancia.toLocaleString('es-AR')}</span>
+                        <span style={{fontSize:'11px', fontWeight:'600', color: margen>30?'#0F6E56':margen>10?'#854F0B':'#A32D2D', minWidth:'32px', textAlign:'right'}}>{margen}%</span>
+                      </div>
+                    </div>
+                    <div style={{background:'#f0f0ec', borderRadius:'4px', height:'8px', overflow:'hidden'}}>
+                      <div style={{width:pct+'%', height:'100%', background:color, borderRadius:'4px', transition:'width 0.4s ease'}} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+        }
+      </div>
+
+      {/* Ranking de productos */}
+      <div className="card">
+        <div style={{fontWeight:'600', fontSize:'14px', marginBottom:'1rem'}}>Ranking de productos más vendidos</div>
+        {rankingProductos.length === 0
+          ? <p style={{fontSize:'13px',color:'#aaa'}}>Sin datos en el período.</p>
+          : <div>
+              <div style={{display:'flex', flexDirection:'column', gap:'10px', marginBottom:'1rem'}}>
+                {rankingProductos.slice(0,10).map((r, i) => {
+                  const pct    = Math.round(r.cantidad / maxCantidad * 100);
+                  const margen = r.revenue > 0 ? Math.round(r.ganancia / r.revenue * 100) : 0;
+                  const p      = r.producto;
+                  return (
+                    <div key={p.id}>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px', fontSize:'13px'}}>
+                        <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                          <span style={{fontSize:'11px', fontWeight:'700', color:'#bbb', minWidth:'18px'}}>#{i+1}</span>
+                          <span style={{fontWeight:'500'}}>{p.nombre}</span>
+                          {p.marca && <span className="badge badge-blue">{p.marca}</span>}
+                        </div>
+                        <div style={{display:'flex', alignItems:'center', gap:'12px', textAlign:'right'}}>
+                          <span style={{color:'#aaa', fontSize:'12px'}}>{r.cantidad} uds</span>
+                          <span style={{color:'#888', fontSize:'12px'}}>${r.revenue.toLocaleString('es-AR')}</span>
+                          <span style={{fontWeight:'600', color:'#0F6E56'}}>${r.ganancia.toLocaleString('es-AR')}</span>
+                          <span style={{fontSize:'11px', fontWeight:'600', color:margen>30?'#0F6E56':margen>10?'#854F0B':'#A32D2D', minWidth:'32px', textAlign:'right'}}>{margen}%</span>
+                        </div>
+                      </div>
+                      <div style={{background:'#f0f0ec', borderRadius:'4px', height:'6px', overflow:'hidden'}}>
+                        <div style={{width:pct+'%', height:'100%', background: i===0?'#1D9E75':i===1?'#378ADD':i===2?'#EF9F27':'#d0d0cc', borderRadius:'4px', transition:'width 0.4s ease'}} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {rankingProductos.length > 10 && (
+                <p style={{fontSize:'12px',color:'#aaa',textAlign:'center'}}>Mostrando top 10 de {rankingProductos.length} productos</p>
+              )}
+              {/* Tabla completa */}
+              <details style={{marginTop:'8px'}}>
+                <summary style={{fontSize:'12px',cursor:'pointer',color:'#888',fontWeight:'500'}}>Ver tabla completa</summary>
+                <table style={{marginTop:'10px'}}>
+                  <thead><tr><th>#</th><th>Producto</th><th>Marca</th><th>Uds.</th><th>Facturado</th><th>Ganancia</th><th>Margen</th></tr></thead>
+                  <tbody>
+                    {rankingProductos.map((r, i) => {
+                      const margen = r.revenue > 0 ? Math.round(r.ganancia/r.revenue*100) : 0;
+                      return (
+                        <tr key={r.producto.id}>
+                          <td style={{color:'#aaa',fontWeight:'600'}}>#{i+1}</td>
+                          <td style={{fontWeight:'500'}}>{r.producto.nombre}</td>
+                          <td>{r.producto.marca && <span className="badge badge-blue">{r.producto.marca}</span>}</td>
+                          <td>{r.cantidad}</td>
+                          <td>${r.revenue.toLocaleString('es-AR')}</td>
+                          <td style={{color:'#0F6E56',fontWeight:'500'}}>${r.ganancia.toLocaleString('es-AR')}</td>
+                          <td style={{color:margen>30?'#0F6E56':margen>10?'#854F0B':'#A32D2D',fontWeight:'500'}}>{margen}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </details>
+            </div>
+        }
+      </div>
     </div>
   );
 }
