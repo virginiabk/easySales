@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>easySales — Gestión</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f2; color: #1a1a18; min-height: 100vh; font-size: 14px; }
+input, select, textarea, button { font-family: inherit; font-size: 14px; }
+input, select, textarea { background: #fff; color: #1a1a18; border: 1px solid #d0d0cc; border-radius: 8px; padding: 8px 12px; width: 100%; outline: none; transition: border-color 0.15s; }
+input:focus, select:focus, textarea:focus { border-color: #1D9E75; box-shadow: 0 0 0 3px rgba(29,158,117,0.1); }
+button { cursor: pointer; border-radius: 8px; font-weight: 500; transition: all 0.15s; border: none; }
+.btn-primary { background: #1D9E75; color: white; padding: 9px 18px; }
+.btn-primary:hover { background: #0F6E56; }
+.btn-primary:disabled { background: #9FE1CB; cursor: not-allowed; }
+.btn-secondary { background: transparent; border: 1px solid #d0d0cc; color: #1a1a18; padding: 8px 16px; }
+.btn-secondary:hover { background: #f0f0ec; }
+.btn-danger { background: #E24B4A; color: white; padding: 6px 12px; font-size: 12px; border-radius: 6px; }
+.btn-danger:hover { background: #A32D2D; }
+.btn-sm { padding: 5px 11px; font-size: 12px; }
+.card { background: #fff; border: 1px solid #e8e8e4; border-radius: 12px; padding: 1.25rem; }
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
+.modal-box { background: #fff; border-radius: 12px; padding: 1.5rem; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+.tag { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+.tag-ok { background: #EAF3DE; color: #3B6D11; }
+.tag-low { background: #FAEEDA; color: #854F0B; }
+.tag-none { background: #FCEBEB; color: #A32D2D; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+.badge-blue { background: #E6F1FB; color: #185FA5; }
+.badge-green { background: #EAF3DE; color: #3B6D11; }
+.metric { background: #f0f0ec; border-radius: 8px; padding: 1rem; }
+.metric-label { font-size: 11px; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.metric-value { font-size: 22px; font-weight: 500; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 500; color: #888; border-bottom: 1px solid #e8e8e4; text-transform: uppercase; letter-spacing: 0.04em; }
+td { padding: 10px 12px; border-bottom: 1px solid #f0f0ec; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafaf7; }
+.nav-item { padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; color: #666; transition: all 0.15s; }
+.nav-item:hover { background: #f0f0ec; color: #1a1a18; }
+.nav-item.active { background: #E1F5EE; color: #0F6E56; }
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 12px; font-weight: 500; margin-bottom: 5px; display: block; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.empty-state { text-align: center; padding: 3rem 1rem; color: #999; }
+.divider { height: 1px; background: #e8e8e4; margin: 1rem 0; }
+.setup-screen { max-width: 500px; margin: 4rem auto; padding: 1rem; }
+.logo-area { display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; }
+.logo-icon { width: 40px; height: 40px; background: #1D9E75; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-size: 20px; flex-shrink: 0; }
+.err-msg { background: #FCEBEB; color: #A32D2D; border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 12px; }
+.hint { font-size: 11px; color: #999; margin-top: 4px; }
+pre.sql-block { background: #f5f5f2; padding: 12px; border-radius: 8px; overflow: auto; font-size: 11px; line-height: 1.6; margin-top: 8px; white-space: pre-wrap; font-family: monospace; border: 1px solid #e0e0dc; }
+@media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } .sidebar { display: none; } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+const { createClient } = supabase;
+
+// ─── Login ────────────────────────────────────────────────────────────────────
+// Las credenciales de Supabase NUNCA estan en este archivo.
+// El servidor las entrega solo si la contraseña es correcta.
+function Login({ onAuth }) {
+  const [pass, setPass] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!pass) return;
+    setLoading(true); setErr('');
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pass })
+      });
+      if (!res.ok) { setErr('Contraseña incorrecta.'); setLoading(false); return; }
+      const { sbUrl, sbKey, token } = await res.json();
+      // Guardar token de sesion (no las credenciales de supabase en localStorage)
+      sessionStorage.setItem('app_token', token);
+      onAuth(sbUrl, sbKey, token);
+    } catch(e) {
+      setErr('No se pudo conectar con el servidor.');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="setup-screen">
+      <div className="card">
+        <div className="logo-area">
+          <div className="logo-icon">&#127890;</div>
+          <div>
+            <div style={{fontWeight:'600', fontSize:'17px'}}>easySales</div>
+            <div style={{fontSize:'12px', color:'#888'}}>Sistema de gestion</div>
+          </div>
+        </div>
+        {err && <div className="err-msg">{err}</div>}
+        <div className="form-group">
+          <label className="form-label">Contrasena</label>
+          <input
+            type="password"
+            placeholder="Ingresa tu contrasena"
+            value={pass}
+            onChange={e=>setPass(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&handleLogin()}
+            autoFocus
+          />
+        </div>
+        <button className="btn-primary" style={{width:'100%'}} onClick={handleLogin} disabled={loading}>
+          {loading ? 'Verificando...' : 'Ingresar'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ────────────────────────────────────────────────────────────────
+function App() {
+  const [sb, setSb] = useState(null);
+  const [token, setToken] = useState(null);
+  const [section, setSection] = useState('dashboard');
+  const [productos, setProductos] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [ventas, setVentas] = useState([]);
+  const [vitems, setVitems] = useState([]);
+  const [prodImagenes, setProdImagenes] = useState([]);
+  const [prodPrecios, setProdPrecios]   = useState([]);
+  const [prodVariantes, setProdVariantes] = useState([]);
+  const [config, setConfig] = useState({ marcas:[], categorias:[], proveedores:[] });
+  const [loading, setLoading] = useState(false);
+
+  // Intentar restaurar sesion via token guardado
+  useEffect(() => {
+    const savedToken = sessionStorage.getItem('app_token');
+    if (!savedToken) return;
+    setLoading(true);
+    fetch('/api/auth/session', {
+      headers: { 'Authorization': 'Bearer ' + savedToken }
+    }).then(async res => {
+      if (!res.ok) { sessionStorage.removeItem('app_token'); setLoading(false); return; }
+      const { sbUrl, sbKey } = await res.json();
+      const c = createClient(sbUrl, sbKey);
+      setSb(c); setToken(savedToken); setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const load = useCallback(async (client) => {
+    const c = client || sb;
+    if (!c) return;
+    setLoading(true);
+    const [p,cl,v,vi,pi,cfg,pp,pv] = await Promise.all([
+      c.from('productos').select('*').order('nombre'),
+      c.from('clientes').select('*').order('nombre'),
+      c.from('ventas').select('*').order('fecha', {ascending:false}),
+      c.from('venta_items').select('*'),
+      c.from('producto_imagenes').select('*').order('orden'),
+      c.from('configuracion').select('*'),
+      c.from('producto_precios').select('*').order('fecha', {ascending:false}),
+      c.from('producto_variantes').select('*').order('created_at'),
+    ]);
+    if (p.data) setProductos(p.data);
+    if (cl.data) setClientes(cl.data);
+    if (v.data) setVentas(v.data);
+    if (vi.data) setVitems(vi.data);
+    if (pi.data) setProdImagenes(pi.data);
+    if (pp.data) setProdPrecios(pp.data);
+    if (pv.data) setProdVariantes(pv.data);
+    if (cfg.data) {
+      const parse = tipo => (cfg.data.find(r=>r.tipo===tipo)?.valores || []);
+      setConfig({ marcas: parse('marca'), categorias: parse('categoria'), proveedores: parse('proveedor') });
+    }
+    setLoading(false);
+  }, [sb]);
+
+  useEffect(() => { if (sb) load(sb); }, [sb]);
+
+  if (loading && !sb) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',color:'#aaa',fontSize:'14px'}}>Verificando sesion...</div>;
+  if (!sb) return <Login onAuth={(sbUrl, sbKey, tok) => {
+    const c = createClient(sbUrl, sbKey);
+    setSb(c); setToken(tok); load(c);
+  }} />;
+
+  const nav = [
+    {id:'dashboard', icon:'📊', label:'Dashboard'},
+    {id:'productos', icon:'📦', label:'Productos'},
+    {id:'ventas', icon:'💰', label:'Ventas'},
+    {id:'clientes', icon:'👥', label:'Clientes'},
+    {id:'configuracion', icon:'⚙️', label:'Configuración'},
+  ];
+
+  return (
+    <div style={{display:'flex', minHeight:'100vh'}}>
+      <div className="sidebar" style={{width:'190px', background:'#fff', borderRight:'1px solid #e8e8e4', padding:'1rem', display:'flex', flexDirection:'column', gap:'4px', flexShrink:0}}>
+        <div style={{display:'flex', alignItems:'center', gap:'8px', marginBottom:'1.25rem', paddingLeft:'4px'}}>
+          <div className="logo-icon" style={{width:'28px', height:'28px', fontSize:'14px', borderRadius:'7px'}}>&#127890;</div>
+          <span style={{fontWeight:'600', fontSize:'13px'}}>easySales</span>
+        </div>
+        {nav.map(n => (
+          <div key={n.id} className={`nav-item ${section===n.id?'active':''}`} onClick={() => setSection(n.id)}>
+            <span style={{fontSize:'15px'}}>{n.icon}</span>
+            <span>{n.label}</span>
+          </div>
+        ))}
+        <div style={{flex:1}} />
+        <div style={{padding:'8px 14px', fontSize:'11px', color:'#bbb', cursor:'pointer'}} onClick={() => { sessionStorage.removeItem('app_token'); setSb(null); setToken(null); }}>Desconectar</div>
+      </div>
+
+      <div style={{flex:1, padding:'1.5rem', overflow:'auto', maxWidth:'1100px'}}>
+        {loading ? (
+          <div style={{textAlign:'center', padding:'3rem', color:'#aaa'}}>Cargando datos...</div>
+        ) : (
+          <>
+            {section === 'dashboard' && <Dashboard productos={productos} ventas={ventas} vitems={vitems} clientes={clientes} onNav={setSection} />}
+            {section === 'productos' && <Productos sb={sb} productos={productos} prodImagenes={prodImagenes} prodPrecios={prodPrecios} prodVariantes={prodVariantes} config={config} onRefresh={() => load()} />}
+            {section === 'ventas' && <Ventas sb={sb} ventas={ventas} vitems={vitems} productos={productos} clientes={clientes} onRefresh={() => load()} />}
+            {section === 'clientes' && <ClientesView sb={sb} clientes={clientes} ventas={ventas} onRefresh={() => load()} />}
+            {section === 'configuracion' && <Configuracion sb={sb} config={config} onRefresh={() => load()} />}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+function Dashboard({ productos, ventas, vitems, clientes, onNav }) {
+  const hoy = new Date();
+  const mesActual = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}`;
+
+  const [modo, setModo] = useState('mes'); // 'mes' | 'rango'
+  const [mes, setMes] = useState(mesActual);
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+
+  // Calcular rango efectivo según modo
+  const rango = React.useMemo(() => {
+    if (modo === 'mes' && mes) {
+      const [y, m] = mes.split('-').map(Number);
+      const ini = new Date(y, m-1, 1);
+      const fin = new Date(y, m, 0, 23, 59, 59, 999);
+      return { ini, fin };
+    }
+    if (modo === 'rango' && desde && hasta) {
+      const ini = new Date(desde + 'T00:00:00');
+      const fin = new Date(hasta + 'T23:59:59');
+      return { ini, fin };
+    }
+    return null;
+  }, [modo, mes, desde, hasta]);
+
+  const ventasFiltradas = React.useMemo(() => {
+    if (!rango) return ventas;
+    return ventas.filter(v => {
+      const f = new Date(v.fecha);
+      return f >= rango.ini && f <= rango.fin;
+    });
+  }, [ventas, rango]);
+
+  const totalVentas = ventasFiltradas.reduce((s,v)=>s+Number(v.total||0),0);
+  const totalGanancia = ventasFiltradas.reduce((s,v)=>s+Number(v.ganancia||0),0);
+  const ticketPromedio = ventasFiltradas.length > 0 ? totalVentas / ventasFiltradas.length : 0;
+  const sinStock = productos.filter(p => p.stock_actual === 0);
+  const stockBajo = productos.filter(p => p.stock_actual > 0 && p.stock_actual <= p.stock_minimo);
+  const ultimas = ventasFiltradas.slice(0,6);
+
+  // Etiqueta del período seleccionado
+  const labelPeriodo = React.useMemo(() => {
+    if (modo === 'mes' && mes) {
+      const [y, m] = mes.split('-').map(Number);
+      return new Date(y, m-1, 1).toLocaleDateString('es-AR', {month:'long', year:'numeric'});
+    }
+    if (modo === 'rango' && desde && hasta) {
+      return `${new Date(desde+'T00:00:00').toLocaleDateString('es-AR')} → ${new Date(hasta+'T00:00:00').toLocaleDateString('es-AR')}`;
+    }
+    return 'Período seleccionado';
+  }, [modo, mes, desde, hasta]);
+
+  return (
+    <div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1.25rem', flexWrap:'wrap', gap:'12px'}}>
+        <h1 style={{fontSize:'19px', fontWeight:'600'}}>Dashboard</h1>
+
+        {/* Filtro de fecha */}
+        <div style={{display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap'}}>
+          {/* Toggle modo */}
+          <div style={{display:'flex', background:'#f0f0ec', borderRadius:'8px', padding:'3px', gap:'2px'}}>
+            {[['mes','Por mes'],['rango','Rango']].map(([v,l]) => (
+              <button key={v} onClick={() => setModo(v)} style={{
+                padding:'5px 12px', fontSize:'12px', fontWeight:'500', border:'none', borderRadius:'6px',
+                background: modo===v ? '#fff' : 'transparent',
+                color: modo===v ? '#1a1a18' : '#888',
+                boxShadow: modo===v ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                cursor:'pointer', transition:'all 0.15s'
+              }}>{l}</button>
+            ))}
+          </div>
+
+          {modo === 'mes' && (
+            <input type="month" value={mes} onChange={e=>setMes(e.target.value)}
+              style={{width:'auto', padding:'6px 10px', fontSize:'13px', borderRadius:'8px', border:'1px solid #d0d0cc'}} />
+          )}
+
+          {modo === 'rango' && (
+            <div style={{display:'flex', alignItems:'center', gap:'6px'}}>
+              <input type="date" value={desde} onChange={e=>setDesde(e.target.value)}
+                style={{width:'auto', padding:'6px 10px', fontSize:'13px', borderRadius:'8px', border:'1px solid #d0d0cc'}} />
+              <span style={{fontSize:'12px', color:'#888'}}>→</span>
+              <input type="date" value={hasta} onChange={e=>setHasta(e.target.value)}
+                style={{width:'auto', padding:'6px 10px', fontSize:'13px', borderRadius:'8px', border:'1px solid #d0d0cc'}} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sub-etiqueta período */}
+      <div style={{fontSize:'12px', color:'#aaa', marginBottom:'1rem', marginTop:'-8px'}}>
+        Mostrando: <span style={{color:'#666', fontWeight:'500'}}>{labelPeriodo}</span>
+        {' · '}<span style={{color:'#888'}}>{ventasFiltradas.length} venta{ventasFiltradas.length!==1?'s':''}</span>
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'10px', marginBottom:'1.5rem'}}>
+        <div className="metric"><div className="metric-label">Total vendido</div><div className="metric-value">${totalVentas.toLocaleString('es-AR')}</div></div>
+        <div className="metric"><div className="metric-label">Ganancia</div><div className="metric-value" style={{color:'#0F6E56'}}>${totalGanancia.toLocaleString('es-AR')}</div></div>
+        <div className="metric"><div className="metric-label">Ticket promedio</div><div className="metric-value">${Math.round(ticketPromedio).toLocaleString('es-AR')}</div></div>
+        <div className="metric"><div className="metric-label">Productos</div><div className="metric-value">{productos.length}</div></div>
+        <div className="metric"><div className="metric-label">Clientes</div><div className="metric-value">{clientes.length}</div></div>
+      </div>
+
+      {(() => {
+        const pendientes = ventas.filter(v => ['pedido','listo','entregado','pagado_adelanto'].includes(v.estado||'pedido'));
+        if (pendientes.length === 0) return null;
+        return (
+          <div className="card" style={{marginBottom:'1rem', borderLeft:'3px solid #378ADD'}}>
+            <div style={{fontWeight:'600', fontSize:'13px', marginBottom:'10px', color:'#185FA5'}}>Pedidos en curso ({pendientes.length})</div>
+            <div style={{display:'flex', flexDirection:'column', gap:'7px'}}>
+              {pendientes.slice(0,5).map(v => {
+                const cl = clientes.find(c=>c.id===v.cliente_id);
+                return (
+                  <div key={v.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'13px'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                      <EstadoBadge estado={v.estado||'pedido'} />
+                      <span style={{color:'#444'}}>{cl ? cl.nombre : <em style={{color:'#bbb', fontStyle:'normal'}}>Sin cliente</em>}</span>
+                    </div>
+                    <span style={{fontWeight:'600'}}>${Number(v.total).toLocaleString('es-AR')}</span>
+                  </div>
+                );
+              })}
+              {pendientes.length > 5 && <div style={{fontSize:'11px', color:'#aaa'}}>y {pendientes.length-5} más...</div>}
+            </div>
+          </div>
+        );
+      })()}
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem'}}>
+        <div className="card">
+          <div style={{fontWeight:'600', fontSize:'13px', marginBottom:'1rem', color:'#444'}}>Alertas de stock</div>
+          {sinStock.length===0 && stockBajo.length===0
+            ? <p style={{fontSize:'13px', color:'#999'}}>Todo el stock está en orden ✓</p>
+            : <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+                {sinStock.map(p=>(
+                  <div key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'13px'}}>
+                    <span>{p.nombre}</span><span className="tag tag-none">Sin stock</span>
+                  </div>
+                ))}
+                {stockBajo.map(p=>(
+                  <div key={p.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'13px'}}>
+                    <span>{p.nombre}</span><span className="tag tag-low">Bajo ({p.stock_actual})</span>
+                  </div>
+                ))}
+              </div>
+          }
+        </div>
+        <div className="card">
+          <div style={{fontWeight:'600', fontSize:'13px', marginBottom:'1rem', color:'#444'}}>
+            Ventas del período
+          </div>
+          {ultimas.length === 0
+            ? <p style={{fontSize:'13px', color:'#999'}}>Sin ventas en este período.</p>
+            : <div style={{display:'flex', flexDirection:'column', gap:'8px'}}>
+                {ultimas.map(v=>(
+                  <div key={v.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'13px'}}>
+                    <span style={{color:'#666'}}>{new Date(v.fecha).toLocaleDateString('es-AR')}</span>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontWeight:'500'}}>${Number(v.total).toLocaleString('es-AR')}</div>
+                      <div style={{fontSize:'11px', color:'#0F6E56'}}>+${Number(v.ganancia).toLocaleString('es-AR')}</div>
+                    </div>
+                  </div>
+                ))}
+                {ventasFiltradas.length > 6 && (
+                  <div style={{fontSize:'11px', color:'#aaa', textAlign:'center', paddingTop:'4px'}}>
+                    y {ventasFiltradas.length - 6} más…
+                  </div>
+                )}
+              </div>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Productos ───────────────────────────────────────────────────────────────
+const BUCKET = 'productos-imagenes';
+
+async function uploadImagen(sb, file, productoId) {
+  const ext  = file.name.split('.').pop();
+  const path = productoId + '/' + Date.now() + '.' + ext;
+  const { error } = await sb.storage.from(BUCKET).upload(path, file, { upsert: true });
+  if (error) throw error;
+  const { data } = sb.storage.from(BUCKET).getPublicUrl(path);
+  return { url: data.publicUrl, path };
+}
+
+async function deleteImagenStorage(sb, url) {
+  try {
+    const parts = url.split('/object/public/' + BUCKET + '/');
+    if (parts[1]) await sb.storage.from(BUCKET).remove([decodeURIComponent(parts[1])]);
+  } catch(e) { console.warn('No se pudo borrar del storage:', e); }
+}
+
+// ─── Galería ─────────────────────────────────────────────────────────────────
+function GaleriaUploader({ sb, productoId, imagenes, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const inputRef = React.useRef();
+
+  const handleFiles = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    if (productoId) {
+      setUploading(true);
+      const nuevas = [];
+      for (const file of files) {
+        try {
+          const { url } = await uploadImagen(sb, file, productoId);
+          const orden = imagenes.length + nuevas.length;
+          const { data: img } = await sb.from('producto_imagenes').insert([{ producto_id: productoId, url, orden }]).select().single();
+          if (img) nuevas.push(img);
+        } catch(err) { alert('Error al subir: ' + err.message); }
+      }
+      onChange([...imagenes, ...nuevas]);
+      setUploading(false);
+    } else {
+      const pendientes = files.map((file, i) => ({ id:null, pendingFile:file, localUrl:URL.createObjectURL(file), url:null, orden:imagenes.length+i }));
+      onChange([...imagenes, ...pendientes]);
+    }
+    inputRef.current.value = '';
+  };
+
+  const handleRemove = async (img, idx) => {
+    if (img.url && img.url.includes('supabase')) {
+      await deleteImagenStorage(sb, img.url);
+      if (img.id) await sb.from('producto_imagenes').delete().eq('id', img.id);
+    }
+    onChange(imagenes.filter((_,i) => i !== idx).map((im,i) => ({...im, orden:i})));
+  };
+
+  return (
+    <div>
+      {imagenes.length > 0 && (
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(72px,1fr))', gap:'6px', marginBottom:'8px'}}>
+          {imagenes.map((img, idx) => (
+            <div key={idx} style={{position:'relative', aspectRatio:'1', borderRadius:'7px', overflow:'hidden', border:'1px solid #e8e8e4'}}>
+              <img src={img.localUrl||img.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
+              <button onClick={() => handleRemove(img,idx)} style={{position:'absolute',top:'3px',right:'3px',background:'rgba(0,0,0,0.6)',color:'#fff',border:'none',borderRadius:'50%',width:'18px',height:'18px',cursor:'pointer',fontSize:'10px',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'700',lineHeight:1}}>x</button>
+              {img.url && img.url.includes('supabase') && (
+                <a href={img.url} download target="_blank" rel="noreferrer" style={{position:'absolute',bottom:'3px',right:'3px',background:'rgba(0,0,0,0.5)',color:'#fff',borderRadius:'3px',width:'18px',height:'18px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'10px',textDecoration:'none'}}>&#11015;</a>
+              )}
+              {imagenes.length > 1 && <div style={{position:'absolute',top:'3px',left:'3px',background:'rgba(0,0,0,0.45)',color:'#fff',fontSize:'9px',borderRadius:'3px',padding:'1px 3px'}}>{idx+1}</div>}
+              {img.pendingFile && <div style={{position:'absolute',bottom:0,left:0,right:0,background:'rgba(0,0,0,0.45)',color:'#fff',fontSize:'9px',textAlign:'center',padding:'2px'}}>pendiente</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      <div onClick={() => !uploading && inputRef.current.click()} style={{border:'2px dashed #d0d0cc',borderRadius:'8px',padding:'12px',textAlign:'center',cursor:uploading?'default':'pointer',background:'#fafaf7'}} onMouseOver={e=>{if(!uploading)e.currentTarget.style.borderColor='#1D9E75';}} onMouseOut={e=>e.currentTarget.style.borderColor='#d0d0cc'}>
+        <div style={{fontSize:'16px',marginBottom:'3px'}}>&#128247;</div>
+        <div style={{fontSize:'11px',color:'#888'}}>{uploading?'Subiendo...' : imagenes.length>0?'+ Más fotos':'Subir fotos'}</div>
+        <div style={{fontSize:'10px',color:'#bbb',marginTop:'1px'}}>JPG PNG WEBP — múltiples</div>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={handleFiles} />
+    </div>
+  );
+}
+
+// ─── Historial de precios ─────────────────────────────────────────────────────
+function HistorialPrecios({ precios }) {
+  if (!precios.length) return <p style={{fontSize:'13px',color:'#aaa'}}>Sin historial de precios.</p>;
+  return (
+    <table>
+      <thead><tr><th>Fecha</th><th>Costo</th><th>Precio venta</th><th>Nota</th></tr></thead>
+      <tbody>
+        {precios.map(p => (
+          <tr key={p.id}>
+            <td style={{fontSize:'12px',color:'#666'}}>{new Date(p.fecha).toLocaleDateString('es-AR')}</td>
+            <td>${Number(p.precio_costo).toLocaleString('es-AR')}</td>
+            <td style={{fontWeight:'500'}}>${Number(p.precio_venta).toLocaleString('es-AR')}</td>
+            <td style={{fontSize:'12px',color:'#888'}}>{p.nota||'—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ─── Variantes ────────────────────────────────────────────────────────────────
+function VariantesEditor({ variantes, onChange }) {
+  const emptyVar = { color:'', talle:'', stock:0, codigo_barras:'' };
+
+  const add    = ()          => onChange([...variantes, {...emptyVar}]);
+  const remove = idx         => onChange(variantes.filter((_,i)=>i!==idx));
+  const update = (idx,f,val) => { const u=[...variantes]; u[idx]={...u[idx],[f]:val}; onChange(u); };
+
+  return (
+    <div>
+      {variantes.length > 0 && (
+        <div style={{marginBottom:'8px'}}>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 70px 1fr auto', gap:'6px', marginBottom:'4px', padding:'0 2px'}}>
+            {['Color','Talle','Stock','Cód. barras',''].map((h,i) => (
+              <div key={i} style={{fontSize:'10px',fontWeight:'600',color:'#888',textTransform:'uppercase',letterSpacing:'0.04em'}}>{h}</div>
+            ))}
+          </div>
+          {variantes.map((v, idx) => (
+            <div key={idx} style={{display:'grid', gridTemplateColumns:'1fr 1fr 70px 1fr auto', gap:'6px', marginBottom:'6px', alignItems:'center'}}>
+              <input value={v.color}         onChange={e=>update(idx,'color',e.target.value)}         placeholder="Negro, Rojo..." />
+              <input value={v.talle}         onChange={e=>update(idx,'talle',e.target.value)}         placeholder="S, M, 36..." />
+              <input type="number" min="0" value={v.stock} onChange={e=>update(idx,'stock',+e.target.value)} />
+              <input value={v.codigo_barras} onChange={e=>update(idx,'codigo_barras',e.target.value)} placeholder="Opcional" style={{fontFamily:'monospace'}} />
+              <button className="btn-danger" onClick={() => remove(idx)} style={{padding:'6px 8px'}}>x</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button className="btn-secondary btn-sm" onClick={add}>+ Agregar variante</button>
+    </div>
+  );
+}
+
+// ─── Componente principal Productos ──────────────────────────────────────────
+function Productos({ sb, productos, prodImagenes, prodPrecios, prodVariantes, config, onRefresh }) {
+  const CATS       = config.categorias.length  ? config.categorias  : ['Billeteras','Carteras','Bolsos','Cinturones','Mochilas','Accesorios','Otros'];
+  const MARCAS     = config.marcas.length      ? config.marcas      : ['Amayra','Footy','Chimola','Wanderlust','Lima'];
+  const PROVEEDORES = config.proveedores.length ? config.proveedores : [];
+
+  const [modal,    setModal]    = useState(false);
+  const [detalle,  setDetalle]  = useState(null); // producto para ver detalle/historial
+  const [editando, setEditando] = useState(null);
+  const [q,        setQ]        = useState('');
+  const [imagenes, setImagenes] = useState([]);
+  const [variantes,setVariantes]= useState([]);
+  const [detTab,   setDetTab]   = useState('variantes'); // tab en modal detalle
+  const emptyForm = { nombre:'', categoria:'', marca:'', proveedor:'', codigo_barras:'', cod_interno_proveedor:'', fecha_ultimo_ingreso:'', descripcion:'', precio_costo:'', precio_venta:'', stock_actual:'', stock_minimo:'3' };
+  const [form,    setForm]   = useState(emptyForm);
+  const [saving,  setSaving] = useState(false);
+
+  const imagenesDeProducto  = id => prodImagenes.filter(i=>i.producto_id===id).sort((a,b)=>a.orden-b.orden);
+  const variantesDeProducto = id => prodVariantes.filter(v=>v.producto_id===id);
+  const preciosDeProducto   = id => prodPrecios.filter(p=>p.producto_id===id);
+  const miniatura           = p  => { const imgs=imagenesDeProducto(p.id); return imgs.length>0?imgs[0].url:null; };
+
+  // Stock total: si tiene variantes, suma sus stocks; si no, usa stock_actual
+  const stockTotal = p => {
+    const vars = variantesDeProducto(p.id);
+    return vars.length > 0 ? vars.reduce((s,v)=>s+Number(v.stock||0),0) : p.stock_actual;
+  };
+
+  const openNew = () => {
+    setEditando(null); setForm(emptyForm); setImagenes([]); setVariantes([]); setModal(true);
+  };
+
+  const openEdit = p => {
+    setEditando(p);
+    setForm({nombre:p.nombre,categoria:p.categoria||'',marca:p.marca||'',proveedor:p.proveedor||'',codigo_barras:p.codigo_barras||'',cod_interno_proveedor:p.cod_interno_proveedor||'',fecha_ultimo_ingreso:p.fecha_ultimo_ingreso?p.fecha_ultimo_ingreso.split('T')[0]:'',descripcion:p.descripcion||'',precio_costo:p.precio_costo||'',precio_venta:p.precio_venta||'',stock_actual:p.stock_actual||'',stock_minimo:p.stock_minimo||'3'});
+    setImagenes(imagenesDeProducto(p.id));
+    setVariantes(variantesDeProducto(p.id).map(v=>({...v})));
+    setModal(true);
+  };
+
+  const save = async () => {
+    if (!form.nombre.trim()) return;
+    setSaving(true);
+    try {
+      const precioChanged = editando && (Number(form.precio_costo)!==Number(editando.precio_costo) || Number(form.precio_venta)!==Number(editando.precio_venta));
+      const d = {
+        nombre:form.nombre, categoria:form.categoria, marca:form.marca, proveedor:form.proveedor,
+        codigo_barras:form.codigo_barras||null,
+        cod_interno_proveedor:form.cod_interno_proveedor||null,
+        fecha_ultimo_ingreso:form.fecha_ultimo_ingreso||null,
+        descripcion:form.descripcion,
+        precio_costo:+form.precio_costo||0, precio_venta:+form.precio_venta||0,
+        stock_actual:+form.stock_actual||0, stock_minimo:+form.stock_minimo||3,
+      };
+
+      let productoId = editando ? editando.id : null;
+
+      if (editando) {
+        await sb.from('productos').update(d).eq('id', editando.id);
+        // Registrar cambio de precio si hubo
+        if (precioChanged) {
+          await sb.from('producto_precios').insert([{
+            producto_id: editando.id,
+            precio_costo: +form.precio_costo||0,
+            precio_venta: +form.precio_venta||0,
+            nota: 'Actualización manual',
+          }]);
+        }
+      } else {
+        const { data: nuevo, error } = await sb.from('productos').insert([d]).select().single();
+        if (error) throw error;
+        productoId = nuevo.id;
+        // Registrar precio inicial
+        await sb.from('producto_precios').insert([{
+          producto_id: productoId,
+          precio_costo: +form.precio_costo||0,
+          precio_venta: +form.precio_venta||0,
+          nota: 'Precio inicial',
+        }]);
+      }
+
+      // Imágenes pendientes
+      const pendientes = imagenes.filter(i => i.pendingFile);
+      for (const img of pendientes) {
+        const { url } = await uploadImagen(sb, img.pendingFile, productoId);
+        await sb.from('producto_imagenes').insert([{ producto_id: productoId, url, orden: img.orden }]);
+      }
+
+      // Variantes: borrar las existentes y reinsertar
+      if (productoId) {
+        await sb.from('producto_variantes').delete().eq('producto_id', productoId);
+        if (variantes.length > 0) {
+          await sb.from('producto_variantes').insert(
+            variantes.map(v => ({
+              producto_id: productoId,
+              color: v.color||null, talle: v.talle||null,
+              stock: +v.stock||0, codigo_barras: v.codigo_barras||null,
+            }))
+          );
+        }
+      }
+    } catch(err) { alert('Error al guardar: ' + err.message); }
+    setSaving(false); setModal(false); onRefresh();
+  };
+
+  const del = async id => {
+    if (!confirm('Eliminar producto, variantes e imagenes?')) return;
+    const imgs = imagenesDeProducto(id);
+    for (const img of imgs) await deleteImagenStorage(sb, img.url);
+    await sb.from('productos').delete().eq('id', id);
+    onRefresh();
+  };
+
+  const ajustar = async (p, delta) => {
+    await sb.from('productos').update({stock_actual: Math.max(0, p.stock_actual+delta)}).eq('id',p.id);
+    onRefresh();
+  };
+
+  const filtrados = productos.filter(p =>
+    p.nombre.toLowerCase().includes(q.toLowerCase()) ||
+    (p.categoria||'').toLowerCase().includes(q.toLowerCase()) ||
+    (p.marca||'').toLowerCase().includes(q.toLowerCase()) ||
+    (p.proveedor||'').toLowerCase().includes(q.toLowerCase()) ||
+    (p.codigo_barras||'').includes(q)
+  );
+
+  return (
+    <div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem'}}>
+        <h1 style={{fontSize:'19px', fontWeight:'600'}}>Productos</h1>
+        <button className="btn-primary" onClick={openNew}>+ Nuevo producto</button>
+      </div>
+      <div style={{marginBottom:'1rem'}}>
+        <input placeholder="Buscar por nombre, marca, proveedor, categoria o cod. barras..." value={q} onChange={e=>setQ(e.target.value)} style={{maxWidth:'420px'}} />
+      </div>
+
+      <div className="card" style={{padding:0, overflow:'hidden'}}>
+        {filtrados.length === 0
+          ? <div className="empty-state"><div style={{fontSize:'32px',marginBottom:'8px'}}>&#128230;</div>No hay productos.</div>
+          : <table>
+              <thead>
+                <tr><th>Producto</th><th>Marca / Prov.</th><th>Cod. barras</th><th>Costo</th><th>Precio</th><th>Margen</th><th>Stock</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody>
+                {filtrados.map(p => {
+                  const margen  = p.precio_venta > 0 ? Math.round((p.precio_venta-p.precio_costo)/p.precio_venta*100) : 0;
+                  const stock   = stockTotal(p);
+                  const st      = stock===0 ? 'tag-none' : stock<=p.stock_minimo ? 'tag-low' : 'tag-ok';
+                  const stLabel = stock===0 ? 'Sin stock' : stock<=p.stock_minimo ? 'Bajo' : 'OK';
+                  const thumb   = miniatura(p);
+                  const nImgs   = imagenesDeProducto(p.id).length;
+                  const nVars   = variantesDeProducto(p.id).length;
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <div style={{display:'flex', alignItems:'center', gap:'9px'}}>
+                          <div style={{position:'relative', flexShrink:0}}>
+                            {thumb
+                              ? <img src={thumb} alt="" style={{width:'38px',height:'38px',objectFit:'cover',borderRadius:'6px',border:'1px solid #e8e8e4',display:'block'}} />
+                              : <div style={{width:'38px',height:'38px',background:'#f0f0ec',borderRadius:'6px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'16px'}}>&#128230;</div>
+                            }
+                            {nImgs > 1 && <div style={{position:'absolute',bottom:'-4px',right:'-4px',background:'#378ADD',color:'#fff',fontSize:'9px',fontWeight:'700',borderRadius:'10px',padding:'1px 4px',border:'1px solid #fff'}}>{nImgs}</div>}
+                          </div>
+                          <div>
+                            <div style={{fontWeight:'500'}}>{p.nombre}</div>
+                            <div style={{display:'flex', gap:'4px', flexWrap:'wrap', marginTop:'2px'}}>
+                              {p.categoria && <span style={{fontSize:'10px',color:'#999'}}>{p.categoria}</span>}
+                              {nVars > 0 && <span style={{fontSize:'10px',background:'#EEEDFE',color:'#534AB7',padding:'1px 5px',borderRadius:'8px',fontWeight:'500'}}>{nVars} var.</span>}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{display:'flex', flexDirection:'column', gap:'2px'}}>
+                          {p.marca && <span className="badge badge-blue">{p.marca}</span>}
+                          {p.proveedor && <span style={{fontSize:'11px',color:'#888'}}>{p.proveedor}</span>}
+                        </div>
+                      </td>
+                      <td style={{fontSize:'12px',fontFamily:'monospace',color:'#666'}}>{p.codigo_barras||<span style={{color:'#ccc'}}>—</span>}</td>
+                      <td>${Number(p.precio_costo).toLocaleString('es-AR')}</td>
+                      <td style={{fontWeight:'500'}}>${Number(p.precio_venta).toLocaleString('es-AR')}</td>
+                      <td style={{color:margen>30?'#0F6E56':margen>10?'#854F0B':'#A32D2D',fontWeight:'500'}}>{margen}%</td>
+                      <td>
+                        {nVars > 0
+                          ? <span style={{fontWeight:'600'}}>{stock}</span>
+                          : <div style={{display:'flex',alignItems:'center',gap:'5px'}}>
+                              <button style={{background:'#f5f5f2',border:'1px solid #ddd',borderRadius:'5px',width:'22px',height:'22px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'600'}} onClick={() => ajustar(p,-1)}>-</button>
+                              <span style={{fontWeight:'600',minWidth:'22px',textAlign:'center'}}>{p.stock_actual}</span>
+                              <button style={{background:'#f5f5f2',border:'1px solid #ddd',borderRadius:'5px',width:'22px',height:'22px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'600'}} onClick={() => ajustar(p,1)}>+</button>
+                            </div>
+                        }
+                      </td>
+                      <td><span className={'tag '+st}>{stLabel}</span></td>
+                      <td>
+                        <div style={{display:'flex',gap:'5px'}}>
+                          <button className="btn-secondary btn-sm" onClick={() => { setDetalle(p); setDetTab('variantes'); }}>Ver</button>
+                          <button className="btn-secondary btn-sm" onClick={() => openEdit(p)}>Editar</button>
+                          <button className="btn-danger" onClick={() => del(p.id)}>x</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+        }
+      </div>
+
+      {/* ── Modal edición ── */}
+      {modal && (
+        <div className="modal-bg">
+          <div className="modal-box" style={{maxWidth:'620px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1.25rem'}}>
+              <span style={{fontWeight:'600',fontSize:'15px'}}>{editando?'Editar producto':'Nuevo producto'}</span>
+              <button style={{background:'none',border:'none',fontSize:'20px',cursor:'pointer',color:'#999',lineHeight:1}} onClick={() => setModal(false)}>x</button>
+            </div>
+
+            {/* Fila superior: campos + galería */}
+            <div className="form-row" style={{marginBottom:'14px'}}>
+              <div style={{display:'flex',flexDirection:'column',gap:'10px'}}>
+                <div><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Ej: Billetera marron cuero" /></div>
+                <div className="form-row">
+                  <div><label className="form-label">Marca</label>
+                    <select value={form.marca} onChange={e=>setForm({...form,marca:e.target.value})}>
+                      <option value="">Sin marca</option>{MARCAS.map(m=><option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="form-label">Proveedor</label>
+                    <select value={form.proveedor} onChange={e=>setForm({...form,proveedor:e.target.value})}>
+                      <option value="">Sin proveedor</option>{PROVEEDORES.map(p=><option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div><label className="form-label">Categoría</label>
+                    <select value={form.categoria} onChange={e=>setForm({...form,categoria:e.target.value})}>
+                      <option value="">Sin categoría</option>{CATS.map(c=><option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="form-label">Cód. de barras</label>
+                    <input value={form.codigo_barras} onChange={e=>setForm({...form,codigo_barras:e.target.value})} placeholder="Escanear o escribir" style={{fontFamily:'monospace'}} />
+                  </div>
+                </div>
+                <div className="form-row">
+                  <div><label className="form-label">Cód. interno proveedor</label>
+                    <input value={form.cod_interno_proveedor} onChange={e=>setForm({...form,cod_interno_proveedor:e.target.value})} placeholder="Ref. del proveedor" style={{fontFamily:'monospace'}} />
+                  </div>
+                  <div><label className="form-label">Último ingreso</label>
+                    <input type="date" value={form.fecha_ultimo_ingreso} onChange={e=>setForm({...form,fecha_ultimo_ingreso:e.target.value})} />
+                  </div>
+                </div>
+              </div>
+              <div><label className="form-label">Fotos ({imagenes.length})</label>
+                <GaleriaUploader sb={sb} productoId={editando?editando.id:null} imagenes={imagenes} onChange={setImagenes} />
+              </div>
+            </div>
+
+            <div className="divider" />
+
+            {/* Descripción + precios + stock */}
+            <div className="form-group"><label className="form-label">Descripción</label><input value={form.descripcion} onChange={e=>setForm({...form,descripcion:e.target.value})} placeholder="Color, material, talle, etc." /></div>
+            <div className="form-row">
+              <div className="form-group"><label className="form-label">Costo ($)</label><input type="number" value={form.precio_costo} onChange={e=>setForm({...form,precio_costo:e.target.value})} placeholder="0" /></div>
+              <div className="form-group"><label className="form-label">Precio venta ($)</label><input type="number" value={form.precio_venta} onChange={e=>setForm({...form,precio_venta:e.target.value})} placeholder="0" /></div>
+            </div>
+            <div className="form-row">
+              <div className="form-group"><label className="form-label">Stock actual</label><input type="number" value={form.stock_actual} onChange={e=>setForm({...form,stock_actual:e.target.value})} placeholder="0" disabled={variantes.length>0} style={{opacity:variantes.length>0?0.5:1}} /></div>
+              <div className="form-group"><label className="form-label">Stock mínimo (alerta)</label><input type="number" value={form.stock_minimo} onChange={e=>setForm({...form,stock_minimo:e.target.value})} placeholder="3" /></div>
+            </div>
+            {variantes.length > 0 && <p style={{fontSize:'11px',color:'#888',marginTop:'-10px',marginBottom:'12px'}}>El stock total se calcula sumando el stock de cada variante.</p>}
+
+            <div className="divider" />
+
+            {/* Variantes */}
+            <div style={{marginBottom:'14px'}}>
+              <label className="form-label" style={{marginBottom:'8px'}}>Variantes (color / talle)</label>
+              <VariantesEditor variantes={variantes} onChange={setVariantes} />
+            </div>
+
+            <div style={{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'4px'}}>
+              <button className="btn-secondary" onClick={() => setModal(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={save} disabled={saving}>{saving?'Guardando...':'Guardar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal detalle / historial ── */}
+      {detalle && (() => {
+        const margenDet = detalle.precio_venta > 0 ? Math.round((detalle.precio_venta - detalle.precio_costo) / detalle.precio_venta * 100) : 0;
+        const stockDet  = stockTotal(detalle);
+        const varsDet   = variantesDeProducto(detalle.id);
+        return (
+        <div className="modal-bg">
+          <div className="modal-box" style={{maxWidth:'580px'}}>
+            {/* Header */}
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1rem'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
+                {miniatura(detalle) && <img src={miniatura(detalle)} alt="" style={{width:'48px',height:'48px',objectFit:'cover',borderRadius:'8px',border:'1px solid #e8e8e4',flexShrink:0}} />}
+                <div>
+                  <div style={{fontWeight:'700',fontSize:'16px'}}>{detalle.nombre}</div>
+                  <div style={{display:'flex',gap:'5px',flexWrap:'wrap',marginTop:'3px'}}>
+                    {detalle.marca     && <span className="badge badge-blue">{detalle.marca}</span>}
+                    {detalle.categoria && <span className="badge" style={{background:'#f0f0ec',color:'#666'}}>{detalle.categoria}</span>}
+                    {detalle.proveedor && <span className="badge" style={{background:'#EEEDFE',color:'#534AB7'}}>{detalle.proveedor}</span>}
+                  </div>
+                </div>
+              </div>
+              <button style={{background:'none',border:'none',fontSize:'20px',cursor:'pointer',color:'#999',lineHeight:1,flexShrink:0}} onClick={() => setDetalle(null)}>x</button>
+            </div>
+
+            {/* Métricas clave */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginBottom:'1rem'}}>
+              <div className="metric" style={{padding:'10px'}}>
+                <div className="metric-label">Stock</div>
+                <div className="metric-value" style={{fontSize:'18px',color:stockDet===0?'#A32D2D':stockDet<=detalle.stock_minimo?'#854F0B':'inherit'}}>{stockDet}</div>
+              </div>
+              <div className="metric" style={{padding:'10px'}}>
+                <div className="metric-label">Costo</div>
+                <div className="metric-value" style={{fontSize:'16px'}}>${Number(detalle.precio_costo).toLocaleString('es-AR')}</div>
+              </div>
+              <div className="metric" style={{padding:'10px'}}>
+                <div className="metric-label">Precio</div>
+                <div className="metric-value" style={{fontSize:'16px'}}>${Number(detalle.precio_venta).toLocaleString('es-AR')}</div>
+              </div>
+              <div className="metric" style={{padding:'10px'}}>
+                <div className="metric-label">Margen</div>
+                <div className="metric-value" style={{fontSize:'18px',color:margenDet>30?'#0F6E56':margenDet>10?'#854F0B':'#A32D2D'}}>{margenDet}%</div>
+              </div>
+            </div>
+
+            {/* Info secundaria */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px 16px',fontSize:'13px',marginBottom:'1rem',background:'#fafaf7',borderRadius:'8px',padding:'10px 14px'}}>
+              {detalle.codigo_barras && <div><span style={{color:'#aaa',fontSize:'11px'}}>Cód. barras </span><span style={{fontFamily:'monospace'}}>{detalle.codigo_barras}</span></div>}
+              {detalle.cod_interno_proveedor && <div><span style={{color:'#aaa',fontSize:'11px'}}>Cód. proveedor </span><span style={{fontFamily:'monospace'}}>{detalle.cod_interno_proveedor}</span></div>}
+              {detalle.fecha_ultimo_ingreso && <div><span style={{color:'#aaa',fontSize:'11px'}}>Último ingreso </span><span>{new Date(detalle.fecha_ultimo_ingreso).toLocaleDateString('es-AR')}</span></div>}
+              {detalle.descripcion && <div style={{gridColumn:'1/-1'}}><span style={{color:'#aaa',fontSize:'11px'}}>Descripción </span><span>{detalle.descripcion}</span></div>}
+              <div><span style={{color:'#aaa',fontSize:'11px'}}>Stock mínimo </span><span>{detalle.stock_minimo}</span></div>
+              <div><span style={{color:'#aaa',fontSize:'11px'}}>Variantes </span><span>{varsDet.length > 0 ? varsDet.length + ' variantes' : 'Sin variantes'}</span></div>
+              <div><span style={{color:'#aaa',fontSize:'11px'}}>Fotos </span><span>{imagenesDeProducto(detalle.id).length}</span></div>
+            </div>
+
+            {/* Tabs */}
+            <div style={{display:'flex',gap:'4px',borderBottom:'1px solid #e8e8e4',marginBottom:'1rem'}}>
+              {[['variantes','Variantes'],['historial','Historial precios'],['fotos','Fotos']].map(([id,label]) => (
+                <button key={id} onClick={() => setDetTab(id)} style={{padding:'6px 14px',fontSize:'12px',fontWeight:'500',border:'none',borderRadius:'6px 6px 0 0',background:'transparent',cursor:'pointer',color:detTab===id?'#0F6E56':'#888',borderBottom:detTab===id?'2px solid #1D9E75':'2px solid transparent'}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {detTab === 'variantes' && (() => {
+              const vars = variantesDeProducto(detalle.id);
+              return vars.length === 0
+                ? <p style={{fontSize:'13px',color:'#aaa'}}>Sin variantes. Este producto tiene stock único.</p>
+                : <table>
+                    <thead><tr><th>Color</th><th>Talle</th><th>Stock</th><th>Cód. barras</th></tr></thead>
+                    <tbody>
+                      {vars.map(v => (
+                        <tr key={v.id}>
+                          <td>{v.color||<span style={{color:'#ccc'}}>—</span>}</td>
+                          <td>{v.talle||<span style={{color:'#ccc'}}>—</span>}</td>
+                          <td><span style={{fontWeight:'600',color:v.stock===0?'#A32D2D':v.stock<=3?'#854F0B':'inherit'}}>{v.stock}</span></td>
+                          <td style={{fontSize:'11px',fontFamily:'monospace',color:'#888'}}>{v.codigo_barras||<span style={{color:'#ccc'}}>—</span>}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr><td colSpan={2} style={{fontWeight:'600',fontSize:'13px',paddingTop:'8px'}}>Total</td><td style={{fontWeight:'600',paddingTop:'8px'}}>{vars.reduce((s,v)=>s+Number(v.stock||0),0)}</td><td></td></tr>
+                    </tfoot>
+                  </table>;
+            })()}
+
+            {detTab === 'historial' && <HistorialPrecios precios={preciosDeProducto(detalle.id)} />}
+
+            {detTab === 'fotos' && (() => {
+              const imgs = imagenesDeProducto(detalle.id);
+              return imgs.length === 0
+                ? <p style={{fontSize:'13px',color:'#aaa'}}>Sin fotos.</p>
+                : <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(100px,1fr))',gap:'8px'}}>
+                    {imgs.map(img => (
+                      <div key={img.id} style={{position:'relative',aspectRatio:'1',borderRadius:'8px',overflow:'hidden',border:'1px solid #e8e8e4'}}>
+                        <img src={img.url} alt="" style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
+                        <a href={img.url} download target="_blank" rel="noreferrer" style={{position:'absolute',bottom:'4px',right:'4px',background:'rgba(0,0,0,0.55)',color:'#fff',borderRadius:'4px',padding:'3px 6px',fontSize:'11px',textDecoration:'none'}}>&#11015;</a>
+                      </div>
+                    ))}
+                  </div>;
+            })()}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Config estados ───────────────────────────────────────────────────────────
+const ESTADOS = {
+  pedido:          { label:'Pedido',    color:'#E6F1FB', text:'#185FA5', dot:'#378ADD' },
+  pagado_adelanto: { label:'Seña',      color:'#EEEDFE', text:'#534AB7', dot:'#7F77DD' },
+  listo:           { label:'Listo',     color:'#FAEEDA', text:'#854F0B', dot:'#EF9F27' },
+  entregado:       { label:'Entregado', color:'#EAF3DE', text:'#3B6D11', dot:'#639922' },
+  pagado:          { label:'Pagado',    color:'#E1F5EE', text:'#085041', dot:'#1D9E75' },
+  cancelado:       { label:'Cancelado', color:'#f0f0ec', text:'#888',    dot:'#bbb'    },
+};
+
+const PASOS = ['pedido','pagado_adelanto','listo','entregado','pagado'];
+
+function EstadoBadge({ estado }) {
+  const cfg = ESTADOS[estado] || ESTADOS.pedido;
+  return (
+    <span style={{display:'inline-flex', alignItems:'center', gap:'5px', background:cfg.color, color:cfg.text, padding:'3px 9px', borderRadius:'20px', fontSize:'11px', fontWeight:'600', whiteSpace:'nowrap'}}>
+      <span style={{width:'6px', height:'6px', borderRadius:'50%', background:cfg.dot, flexShrink:0}} />
+      {cfg.label}
+    </span>
+  );
+}
+
+function EstadoStepper({ estado, onCambiar }) {
+  const idx = PASOS.indexOf(estado);
+  const cancelado = estado === 'cancelado';
+
+  return (
+    <div>
+      <div style={{display:'flex', alignItems:'center', marginBottom:'14px', overflowX:'auto', paddingBottom:'4px'}}>
+        {PASOS.map((p, i) => {
+          const c = ESTADOS[p];
+          const activo = p === estado;
+          const pasado = !cancelado && idx > i;
+          const clickable = p !== estado;
+          return (
+            <React.Fragment key={p}>
+              <div
+                onClick={() => clickable && onCambiar(p)}
+                style={{display:'flex', flexDirection:'column', alignItems:'center', flexShrink:0, cursor: clickable ? 'pointer' : 'default'}}
+                title={clickable ? ('Cambiar a: ' + c.label) : c.label}
+              >
+                <div style={{
+                  width:'30px', height:'30px', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+                  background: activo ? c.dot : pasado ? '#9FE1CB' : '#e8e8e4',
+                  border: activo ? ('2px solid ' + c.dot) : clickable ? '2px dashed #ccc' : 'none',
+                  fontSize:'11px', fontWeight:'700',
+                  color: activo ? '#fff' : pasado ? '#0F6E56' : '#bbb',
+                  boxShadow: activo ? ('0 0 0 3px ' + c.color) : 'none',
+                  transition:'all 0.15s',
+                  opacity: cancelado && !activo ? 0.4 : 1,
+                }}>{pasado ? '✓' : i+1}</div>
+                <div style={{
+                  fontSize:'10px', marginTop:'4px', fontWeight: activo?'700':'400',
+                  color: activo ? c.text : pasado ? '#666' : '#bbb',
+                  textAlign:'center', maxWidth:'54px', lineHeight:'1.2',
+                  textDecoration: clickable && !cancelado ? 'underline dotted' : 'none',
+                  opacity: cancelado && !activo ? 0.4 : 1,
+                }}>{c.label}</div>
+              </div>
+              {i < PASOS.length-1 && (
+                <div style={{flex:1, height:'2px', background: !cancelado && idx > i ? '#9FE1CB' : '#e8e8e4', minWidth:'14px', marginBottom:'18px', transition:'background 0.2s'}} />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+
+      <div style={{display:'flex', flexWrap:'wrap', gap:'6px', alignItems:'center'}}>
+        {Object.entries(ESTADOS).filter(([k]) => k !== estado).map(([k, sc]) => {
+          const esAtras = PASOS.indexOf(k) < idx && k !== 'cancelado';
+          return (
+            <button key={k} onClick={() => onCambiar(k)} style={{
+              padding:'5px 13px', fontSize:'12px', fontWeight:'600',
+              border:('1px solid ' + sc.dot), borderRadius:'8px',
+              background: sc.color, color: sc.text,
+              cursor:'pointer', transition:'all 0.15s',
+              opacity: esAtras ? 0.75 : 1,
+            }}>
+              {esAtras ? '↩ ' : '→ '}{sc.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Ventas ──────────────────────────────────────────────────────────────────
+function Ventas({ sb, ventas, vitems, productos, clientes, onRefresh }) {
+  const [modal, setModal] = useState(false);
+  const [verDetalle, setVerDetalle] = useState(null);
+  const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [items, setItems] = useState([{producto_id:'', cantidad:1, precio_unitario:0, costo_unitario:0}]);
+  const [clienteId, setClienteId] = useState('');
+  const [pago, setPago] = useState('efectivo');
+  const [notas, setNotas] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const total = items.reduce((s,i) => s + (Number(i.precio_unitario)||0)*(Number(i.cantidad)||0), 0);
+  const ganancia = items.reduce((s,i) => s + ((Number(i.precio_unitario)||0)-(Number(i.costo_unitario)||0))*(Number(i.cantidad)||0), 0);
+
+  const updItem = (idx, field, val) => {
+    const upd = [...items]; upd[idx] = {...upd[idx], [field]: val};
+    if (field === 'producto_id') {
+      const p = productos.find(p=>p.id===val);
+      if (p) { upd[idx].precio_unitario = p.precio_venta; upd[idx].costo_unitario = p.precio_costo; }
+    }
+    setItems(upd);
+  };
+
+  const save = async () => {
+    const valid = items.filter(i=>i.producto_id);
+    if (!valid.length) return;
+    setSaving(true);
+    const {data: v} = await sb.from('ventas').insert([{cliente_id:clienteId||null,total,ganancia,metodo_pago:pago,notas,estado:'pedido'}]).select().single();
+    if (v) {
+      await sb.from('venta_items').insert(valid.map(i=>({venta_id:v.id,producto_id:i.producto_id,cantidad:+i.cantidad,precio_unitario:+i.precio_unitario,costo_unitario:+i.costo_unitario})));
+      for (const i of valid) {
+        const p = productos.find(p=>p.id===i.producto_id);
+        if (p) await sb.from('productos').update({stock_actual:Math.max(0,p.stock_actual-+i.cantidad)}).eq('id',i.producto_id);
+      }
+    }
+    setSaving(false); setModal(false);
+    setItems([{producto_id:'',cantidad:1,precio_unitario:0,costo_unitario:0}]);
+    setClienteId(''); setPago('efectivo'); setNotas('');
+    onRefresh();
+  };
+
+  const cambiarEstado = async (venta, nuevoEstado) => {
+    await sb.from('ventas').update({estado: nuevoEstado}).eq('id', venta.id);
+    setVerDetalle(prev => prev ? {...prev, estado: nuevoEstado} : null);
+    onRefresh();
+  };
+
+  const getItems = id => vitems.filter(vi=>vi.venta_id===id);
+
+  const ventasFiltradas = filtroEstado === 'todos' ? ventas : ventas.filter(v => (v.estado||'pedido') === filtroEstado);
+
+  // Conteo por estado para badges del filtro
+  const conteos = Object.keys(ESTADOS).reduce((acc, k) => {
+    acc[k] = ventas.filter(v => (v.estado||'pedido') === k).length;
+    return acc;
+  }, {});
+
+  return (
+    <div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem'}}>
+        <h1 style={{fontSize:'19px', fontWeight:'600'}}>Ventas</h1>
+        <button className="btn-primary" onClick={() => setModal(true)}>+ Nueva venta</button>
+      </div>
+
+      {/* Filtro por estado */}
+      <div style={{display:'flex', gap:'6px', flexWrap:'wrap', marginBottom:'1rem'}}>
+        <button onClick={() => setFiltroEstado('todos')} style={{
+          padding:'5px 12px', fontSize:'12px', fontWeight:'500', border:'1px solid', borderRadius:'20px', cursor:'pointer',
+          borderColor: filtroEstado==='todos' ? '#1a1a18' : '#d0d0cc',
+          background: filtroEstado==='todos' ? '#1a1a18' : 'transparent',
+          color: filtroEstado==='todos' ? '#fff' : '#666'
+        }}>Todos ({ventas.length})</button>
+        {Object.entries(ESTADOS).map(([k, cfg]) => conteos[k] > 0 && (
+          <button key={k} onClick={() => setFiltroEstado(k)} style={{
+            padding:'5px 12px', fontSize:'12px', fontWeight:'500', border:`1px solid`, borderRadius:'20px', cursor:'pointer',
+            borderColor: filtroEstado===k ? cfg.dot : '#d0d0cc',
+            background: filtroEstado===k ? cfg.color : 'transparent',
+            color: filtroEstado===k ? cfg.text : '#666'
+          }}>{cfg.label} ({conteos[k]})</button>
+        ))}
+      </div>
+
+      <div className="card" style={{padding:0, overflow:'hidden'}}>
+        {ventasFiltradas.length === 0
+          ? <div className="empty-state"><div style={{fontSize:'32px', marginBottom:'8px'}}>💰</div>{filtroEstado==='todos'?'Sin ventas todavía.':'Sin ventas con este estado.'}</div>
+          : <table>
+              <thead><tr><th>Fecha</th><th>Cliente</th><th>Estado</th><th>Ítems</th><th>Total</th><th>Pago</th><th></th></tr></thead>
+              <tbody>
+                {ventasFiltradas.map(v => {
+                  const cl = clientes.find(c=>c.id===v.cliente_id);
+                  const n = getItems(v.id).length;
+                  const estado = v.estado || 'pedido';
+                  return (
+                    <tr key={v.id}>
+                      <td style={{whiteSpace:'nowrap'}}>{new Date(v.fecha).toLocaleDateString('es-AR')}</td>
+                      <td>{cl ? cl.nombre : <span style={{color:'#bbb', fontSize:'12px'}}>—</span>}</td>
+                      <td><EstadoBadge estado={estado} /></td>
+                      <td><span className="badge badge-blue">{n} ítem{n!==1?'s':''}</span></td>
+                      <td style={{fontWeight:'600'}}>${Number(v.total).toLocaleString('es-AR')}</td>
+                      <td><span className="badge badge-green">{v.metodo_pago}</span></td>
+                      <td><button className="btn-secondary btn-sm" onClick={() => setVerDetalle(v)}>Ver</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+        }
+      </div>
+
+      {/* Modal nueva venta */}
+      {modal && (
+        <div className="modal-bg">
+          <div className="modal-box" style={{maxWidth:'560px'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem'}}>
+              <span style={{fontWeight:'600', fontSize:'15px'}}>Nueva venta</span>
+              <button style={{background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#999', lineHeight:1}} onClick={() => setModal(false)}>×</button>
+            </div>
+            <div style={{background:'#E6F1FB', borderRadius:'8px', padding:'8px 12px', marginBottom:'14px', fontSize:'12px', color:'#185FA5', fontWeight:'500'}}>
+              Se creará como <strong>Pedido</strong> — podés avanzar el estado desde el detalle.
+            </div>
+            <div style={{marginBottom:'12px'}}>
+              {items.map((item, idx) => (
+                <div key={idx} style={{display:'grid', gridTemplateColumns:'2fr 60px 110px auto', gap:'8px', marginBottom:'8px', alignItems:'center'}}>
+                  <select value={item.producto_id} onChange={e=>updItem(idx,'producto_id',e.target.value)}>
+                    <option value="">Elegir producto</option>
+                    {productos.filter(p=>p.stock_actual>0).map(p=><option key={p.id} value={p.id}>{p.nombre} (×{p.stock_actual})</option>)}
+                  </select>
+                  <input type="number" min="1" value={item.cantidad} onChange={e=>updItem(idx,'cantidad',e.target.value)} placeholder="Cant." />
+                  <input type="number" value={item.precio_unitario} onChange={e=>updItem(idx,'precio_unitario',e.target.value)} placeholder="Precio" />
+                  {items.length > 1 && <button className="btn-danger" onClick={() => setItems(items.filter((_,i)=>i!==idx))}>✕</button>}
+                </div>
+              ))}
+              <button className="btn-secondary btn-sm" onClick={() => setItems([...items, {producto_id:'',cantidad:1,precio_unitario:0,costo_unitario:0}])}>+ Agregar ítem</button>
+            </div>
+            <div className="divider" />
+            <div className="form-row" style={{marginBottom:'12px'}}>
+              <div><label className="form-label">Cliente (opcional)</label>
+                <select value={clienteId} onChange={e=>setClienteId(e.target.value)}>
+                  <option value="">Sin cliente</option>
+                  {clientes.map(c=><option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div><label className="form-label">Método de pago</label>
+                <select value={pago} onChange={e=>setPago(e.target.value)}>
+                  <option>efectivo</option><option>transferencia</option><option>débito</option><option>crédito</option><option>mercadopago</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-group"><label className="form-label">Notas</label><input value={notas} onChange={e=>setNotas(e.target.value)} placeholder="Ej: pide color negro, entrega el jueves..." /></div>
+            <div style={{background:'#f5f5f2', borderRadius:'8px', padding:'12px', marginBottom:'14px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <div><div style={{fontSize:'11px', color:'#888', textTransform:'uppercase', letterSpacing:'0.04em'}}>Total</div><div style={{fontSize:'20px', fontWeight:'600'}}>${total.toLocaleString('es-AR')}</div></div>
+              <div style={{textAlign:'right'}}><div style={{fontSize:'11px', color:'#888', textTransform:'uppercase', letterSpacing:'0.04em'}}>Ganancia</div><div style={{fontSize:'20px', fontWeight:'600', color:'#0F6E56'}}>+${ganancia.toLocaleString('es-AR')}</div></div>
+            </div>
+            <div style={{display:'flex', gap:'8px', justifyContent:'flex-end'}}>
+              <button className="btn-secondary" onClick={() => setModal(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={save} disabled={saving}>{saving?'Registrando...':'Registrar pedido'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal detalle + cambio de estado */}
+      {verDetalle && (
+        <div className="modal-bg">
+          <div className="modal-box" style={{maxWidth:'520px'}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'4px'}}>
+              <span style={{fontWeight:'600', fontSize:'15px'}}>Detalle del pedido</span>
+              <button style={{background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#999', lineHeight:1}} onClick={() => setVerDetalle(null)}>×</button>
+            </div>
+            <div style={{fontSize:'12px', color:'#888', marginBottom:'1.25rem'}}>
+              {new Date(verDetalle.fecha).toLocaleString('es-AR')}
+              {clientes.find(c=>c.id===verDetalle.cliente_id) && (
+                <span style={{marginLeft:'8px', color:'#444', fontWeight:'500'}}>· {clientes.find(c=>c.id===verDetalle.cliente_id).nombre}</span>
+              )}
+            </div>
+
+            {/* Stepper de estado */}
+            <div style={{background:'#fafaf7', borderRadius:'10px', padding:'14px', marginBottom:'1.25rem', border:'1px solid #e8e8e4'}}>
+              <div style={{fontSize:'11px', fontWeight:'600', color:'#888', textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:'12px'}}>Estado del pedido</div>
+              <EstadoStepper
+                estado={verDetalle.estado || 'pedido'}
+                onCambiar={nuevoEstado => cambiarEstado(verDetalle, nuevoEstado)}
+              />
+            </div>
+
+            {/* Ítems */}
+            <table>
+              <thead><tr><th>Producto</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead>
+              <tbody>
+                {getItems(verDetalle.id).map(vi => {
+                  const p = productos.find(p=>p.id===vi.producto_id);
+                  return (
+                    <tr key={vi.id}>
+                      <td>{p ? p.nombre : <em style={{color:'#bbb'}}>Eliminado</em>}</td>
+                      <td>{vi.cantidad}</td>
+                      <td>${Number(vi.precio_unitario).toLocaleString('es-AR')}</td>
+                      <td style={{fontWeight:'500'}}>${(vi.cantidad*vi.precio_unitario).toLocaleString('es-AR')}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <div className="divider" />
+            <div style={{display:'flex', justifyContent:'space-between', fontSize:'14px', fontWeight:'500'}}>
+              <span>Total: ${Number(verDetalle.total).toLocaleString('es-AR')}</span>
+              <span style={{color:'#0F6E56'}}>Ganancia: +${Number(verDetalle.ganancia).toLocaleString('es-AR')}</span>
+            </div>
+            {verDetalle.notas && <div style={{marginTop:'10px', fontSize:'12px', color:'#666', background:'#f5f5f2', borderRadius:'6px', padding:'8px'}}>{verDetalle.notas}</div>}
+          </div>
+        </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── Clientes ────────────────────────────────────────────────────────────────
+// Deuda = ventas en estado 'entregado' (recibio el producto pero no pago)
+function tieneDeuda(vs) { return vs.some(v => v.estado === 'entregado'); }
+function montoDeuda(vs) { return vs.filter(v => v.estado === 'entregado').reduce((s,v) => s + Number(v.total||0), 0); }
+
+function ClientesView({ sb, clientes, ventas, onRefresh }) {
+  const [modal, setModal] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [detalle, setDetalle] = useState(null);
+  const [q, setQ] = useState('');
+  const [soloDeuda, setSoloDeuda] = useState(false);
+  const empty = {nombre:'',telefono:'',email:'',notas:''};
+  const [form, setForm] = useState(empty);
+  const [saving, setSaving] = useState(false);
+
+  const openNew = () => { setEdit(null); setForm(empty); setModal(true); };
+  const openEdit = c => { setEdit(c); setForm({nombre:c.nombre,telefono:c.telefono||'',email:c.email||'',notas:c.notas||''}); setModal(true); };
+
+  const save = async () => {
+    if (!form.nombre.trim()) return;
+    setSaving(true);
+    const d = {nombre:form.nombre,telefono:form.telefono,email:form.email,notas:form.notas};
+    if (edit) await sb.from('clientes').update(d).eq('id', edit.id);
+    else await sb.from('clientes').insert([d]);
+    setSaving(false); setModal(false); onRefresh();
+  };
+
+  const del = async id => { if (!confirm('Eliminar cliente?')) return; await sb.from('clientes').delete().eq('id',id); onRefresh(); };
+  const ventasDe = id => ventas.filter(v=>v.cliente_id===id);
+
+  const clientesConDeuda = clientes.filter(c => tieneDeuda(ventasDe(c.id)));
+  const totalDeudaGlobal = clientesConDeuda.reduce((s,c) => s + montoDeuda(ventasDe(c.id)), 0);
+
+  const filtrados = clientes
+    .filter(c => c.nombre.toLowerCase().includes(q.toLowerCase()) || (c.telefono||'').includes(q))
+    .filter(c => soloDeuda ? tieneDeuda(ventasDe(c.id)) : true)
+    .sort((a,b) => {
+      const da = tieneDeuda(ventasDe(a.id));
+      const db = tieneDeuda(ventasDe(b.id));
+      return da === db ? 0 : da ? -1 : 1;
+    });
+
+  return (
+    <div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem'}}>
+        <h1 style={{fontSize:'19px', fontWeight:'600'}}>Clientes</h1>
+        <button className="btn-primary" onClick={openNew}>+ Nuevo cliente</button>
+      </div>
+
+      {clientesConDeuda.length > 0 && (
+        <div style={{background:'#FCEBEB', border:'1px solid #F7C1C1', borderRadius:'10px', padding:'12px 16px', marginBottom:'1rem', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'8px'}}>
+          <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+            <span style={{fontSize:'18px'}}>&#9888;&#65039;</span>
+            <div>
+              <div style={{fontWeight:'600', fontSize:'13px', color:'#A32D2D'}}>{clientesConDeuda.length} cliente{clientesConDeuda.length !== 1 ? 's' : ''} con deuda pendiente</div>
+              <div style={{fontSize:'12px', color:'#791F1F', marginTop:'2px'}}>{clientesConDeuda.map(c=>c.nombre).join(', ')}</div>
+            </div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:'11px', color:'#A32D2D', textTransform:'uppercase', letterSpacing:'0.04em'}}>Total a cobrar</div>
+            <div style={{fontSize:'20px', fontWeight:'700', color:'#A32D2D'}}>${totalDeudaGlobal.toLocaleString('es-AR')}</div>
+          </div>
+        </div>
+      )}
+
+      <div style={{display:'flex', gap:'8px', marginBottom:'1rem', flexWrap:'wrap'}}>
+        <input placeholder="Buscar por nombre o telefono..." value={q} onChange={e=>setQ(e.target.value)} style={{maxWidth:'280px'}} />
+        <button onClick={() => setSoloDeuda(!soloDeuda)} style={{
+          padding:'8px 14px', fontSize:'12px', fontWeight:'600', borderRadius:'8px', cursor:'pointer', transition:'all 0.15s', whiteSpace:'nowrap',
+          border: soloDeuda ? '1px solid #E24B4A' : '1px solid #d0d0cc',
+          background: soloDeuda ? '#FCEBEB' : 'transparent',
+          color: soloDeuda ? '#A32D2D' : '#666',
+        }}>
+          {soloDeuda ? 'x Solo con deuda' : 'o Solo con deuda'}
+        </button>
+      </div>
+
+      <div className="card" style={{padding:0, overflow:'hidden'}}>
+        {filtrados.length === 0
+          ? <div className="empty-state"><div style={{fontSize:'32px', marginBottom:'8px'}}>&#128101;</div>{soloDeuda ? 'Ningun cliente con deuda.' : 'Sin clientes registrados.'}</div>
+          : <table>
+              <thead><tr><th>Nombre</th><th>Telefono</th><th>Estado</th><th>Compras</th><th>Total</th><th></th></tr></thead>
+              <tbody>
+                {filtrados.map(c => {
+                  const vs = ventasDe(c.id);
+                  const total = vs.reduce((s,v)=>s+Number(v.total||0),0);
+                  const deuda = montoDeuda(vs);
+                  const conDeuda = tieneDeuda(vs);
+                  return (
+                    <tr key={c.id} style={{background: conDeuda ? '#fffafa' : 'transparent'}}>
+                      <td>
+                        <div style={{display:'flex', alignItems:'center', gap:'7px', flexWrap:'wrap'}}>
+                          <span style={{fontWeight:'600'}}>{c.nombre}</span>
+                          {conDeuda && <span style={{background:'#FCEBEB', color:'#A32D2D', fontSize:'10px', fontWeight:'700', padding:'2px 7px', borderRadius:'20px', whiteSpace:'nowrap'}}>Debe ${deuda.toLocaleString('es-AR')}</span>}
+                        </div>
+                      </td>
+                      <td>{c.telefono || <span style={{color:'#ccc'}}>-</span>}</td>
+                      <td>
+                        {conDeuda
+                          ? <span className="tag tag-none">Con deuda</span>
+                          : vs.length > 0
+                            ? <span className="tag tag-ok">Al dia</span>
+                            : <span style={{color:'#ccc', fontSize:'12px'}}>-</span>
+                        }
+                      </td>
+                      <td><span className="badge badge-blue">{vs.length}</span></td>
+                      <td style={{fontWeight:'500'}}>${total.toLocaleString('es-AR')}</td>
+                      <td>
+                        <div style={{display:'flex', gap:'5px'}}>
+                          <button className="btn-secondary btn-sm" onClick={() => setDetalle(c)}>Ver</button>
+                          <button className="btn-secondary btn-sm" onClick={() => openEdit(c)}>Editar</button>
+                          <button className="btn-danger" onClick={() => del(c.id)}>x</button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+        }
+      </div>
+
+      {modal && (
+        <div className="modal-bg">
+          <div className="modal-box">
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem'}}>
+              <span style={{fontWeight:'600', fontSize:'15px'}}>{edit?'Editar cliente':'Nuevo cliente'}</span>
+              <button style={{background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#999', lineHeight:1}} onClick={() => setModal(false)}>x</button>
+            </div>
+            <div className="form-group"><label className="form-label">Nombre *</label><input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Nombre completo" /></div>
+            <div className="form-group"><label className="form-label">Telefono</label><input value={form.telefono} onChange={e=>setForm({...form,telefono:e.target.value})} placeholder="Ej: 351 123 4567" /></div>
+            <div className="form-group"><label className="form-label">Email</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="cliente@mail.com" /></div>
+            <div className="form-group"><label className="form-label">Notas</label><textarea value={form.notas} onChange={e=>setForm({...form,notas:e.target.value})} placeholder="Preferencias, observaciones..." rows={3} style={{resize:'vertical'}} /></div>
+            <div style={{display:'flex', gap:'8px', justifyContent:'flex-end'}}>
+              <button className="btn-secondary" onClick={() => setModal(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={save} disabled={saving}>{saving?'Guardando...':'Guardar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detalle && (() => {
+        const vs = ventasDe(detalle.id);
+        const deuda = montoDeuda(vs);
+        const conDeuda = tieneDeuda(vs);
+        return (
+          <div className="modal-bg">
+            <div className="modal-box">
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem'}}>
+                <div style={{display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap'}}>
+                  <span style={{fontWeight:'600', fontSize:'15px'}}>{detalle.nombre}</span>
+                  {conDeuda && <span style={{background:'#FCEBEB', color:'#A32D2D', fontSize:'11px', fontWeight:'700', padding:'3px 9px', borderRadius:'20px'}}>Debe ${deuda.toLocaleString('es-AR')}</span>}
+                </div>
+                <button style={{background:'none', border:'none', fontSize:'20px', cursor:'pointer', color:'#999', lineHeight:1}} onClick={() => setDetalle(null)}>x</button>
+              </div>
+              {conDeuda && (
+                <div style={{background:'#FCEBEB', borderRadius:'8px', padding:'10px 14px', marginBottom:'1rem', fontSize:'13px', color:'#A32D2D'}}>
+                  Tiene {vs.filter(v=>v.estado==='entregado').length} pedido{vs.filter(v=>v.estado==='entregado').length!==1?'s':''} entregado{vs.filter(v=>v.estado==='entregado').length!==1?'s':''} sin cobrar por un total de <strong>${deuda.toLocaleString('es-AR')}</strong>.
+                </div>
+              )}
+              <div style={{fontSize:'13px', color:'#666', display:'flex', flexDirection:'column', gap:'5px', marginBottom:'1rem'}}>
+                {detalle.telefono && <div>Tel: {detalle.telefono}</div>}
+                {detalle.email && <div>Email: {detalle.email}</div>}
+                {detalle.notas && <div style={{background:'#f5f5f2', borderRadius:'6px', padding:'8px', marginTop:'4px'}}>{detalle.notas}</div>}
+              </div>
+              <div style={{fontWeight:'600', fontSize:'13px', marginBottom:'8px'}}>Historial de compras ({vs.length})</div>
+              {vs.length === 0
+                ? <p style={{fontSize:'13px', color:'#aaa'}}>Sin compras registradas.</p>
+                : <table>
+                    <thead><tr><th>Fecha</th><th>Estado</th><th>Total</th><th>Metodo</th></tr></thead>
+                    <tbody>
+                      {vs.map(v => (
+                        <tr key={v.id} style={{background: v.estado==='entregado' ? '#fffafa' : 'transparent'}}>
+                          <td>{new Date(v.fecha).toLocaleDateString('es-AR')}</td>
+                          <td><EstadoBadge estado={v.estado||'pedido'} /></td>
+                          <td style={{fontWeight:'500', color: v.estado==='entregado'?'#A32D2D':'inherit'}}>${Number(v.total).toLocaleString('es-AR')}</td>
+                          <td><span className="badge badge-green">{v.metodo_pago}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+              }
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── Configuración ────────────────────────────────────────────────────────────
+function Configuracion({ sb, config, onRefresh }) {
+  const [tab, setTab]     = useState('marcas');
+  const [saving, setSaving] = useState(false);
+
+  // Estado local editable por tab
+  const [marcas,      setMarcas]      = useState([...config.marcas]);
+  const [categorias,  setCategorias]  = useState([...config.categorias]);
+  const [proveedores, setProveedores] = useState([...config.proveedores]);
+
+  // Sincronizar si config cambia desde fuera
+  React.useEffect(() => { setMarcas([...config.marcas]); },      [config.marcas.join(',')]);
+  React.useEffect(() => { setCategorias([...config.categorias]); }, [config.categorias.join(',')]);
+  React.useEffect(() => { setProveedores([...config.proveedores]); }, [config.proveedores.join(',')]);
+
+  const tabs = [
+    { id:'marca',      label:'Marcas',      icon:'🏷️',  valores: marcas,      setValores: setMarcas },
+    { id:'categoria',  label:'Categorías',  icon:'📂',  valores: categorias,  setValores: setCategorias },
+    { id:'proveedor',  label:'Proveedores', icon:'🏭',  valores: proveedores, setValores: setProveedores },
+  ];
+
+  const current = tabs.find(t => t.id === tab);
+
+  const saveTab = async () => {
+    setSaving(true);
+    try {
+      const { error: upsertError } = await sb.from('configuracion')
+        .upsert({ tipo: tab, valores: current.valores }, { onConflict: 'tipo' });
+      if (upsertError) throw upsertError;
+      onRefresh();
+    } catch(e) { alert('Error al guardar: ' + e.message); }
+    setSaving(false);
+  };
+
+  const addItem = () => {
+    current.setValores([...current.valores, '']);
+  };
+
+  const updateItem = (idx, val) => {
+    const updated = [...current.valores];
+    updated[idx] = val;
+    current.setValores(updated);
+  };
+
+  const removeItem = (idx) => {
+    current.setValores(current.valores.filter((_,i) => i !== idx));
+  };
+
+  const moveItem = (idx, dir) => {
+    const arr = [...current.valores];
+    const swap = idx + dir;
+    if (swap < 0 || swap >= arr.length) return;
+    [arr[idx], arr[swap]] = [arr[swap], arr[idx]];
+    current.setValores(arr);
+  };
+
+  return (
+    <div>
+      <h1 style={{fontSize:'19px', fontWeight:'600', marginBottom:'1.5rem'}}>Configuración</h1>
+
+      <div style={{display:'grid', gridTemplateColumns:'180px 1fr', gap:'1.5rem', alignItems:'start'}}>
+
+        {/* Menú lateral de tabs */}
+        <div className="card" style={{padding:'8px'}}>
+          {tabs.map(t => (
+            <div
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={'nav-item' + (tab === t.id ? ' active' : '')}
+              style={{marginBottom:'2px'}}
+            >
+              <span style={{fontSize:'15px'}}>{t.icon}</span>
+              <div>
+                <div>{t.label}</div>
+                <div style={{fontSize:'11px', opacity:0.7}}>{(tab === t.id ? current.valores : (config[{marca:'marcas',categoria:'categorias',proveedor:'proveedores'}[t.id]] || [])).length} items</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Panel de edición */}
+        <div className="card">
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem'}}>
+            <div>
+              <div style={{fontWeight:'600', fontSize:'15px'}}>{current.label}</div>
+              <div style={{fontSize:'12px', color:'#888', marginTop:'2px'}}>
+                {tab === 'marcas' && 'Marcas disponibles al cargar productos.'}
+                {tab === 'categorias' && 'Categorías para clasificar productos.'}
+                {tab === 'proveedores' && 'Proveedores para referencia en productos.'}
+              </div>
+            </div>
+            <button className="btn-primary btn-sm" onClick={addItem}>+ Agregar</button>
+          </div>
+
+          {current.valores.length === 0 ? (
+            <div className="empty-state" style={{padding:'2rem'}}>
+              <div style={{fontSize:'28px', marginBottom:'8px'}}>{current.icon}</div>
+              <div>No hay {current.label.toLowerCase()} todavía.</div>
+              <button className="btn-secondary" style={{marginTop:'12px'}} onClick={addItem}>+ Agregar el primero</button>
+            </div>
+          ) : (
+            <div style={{display:'flex', flexDirection:'column', gap:'8px', marginBottom:'1.25rem'}}>
+              {current.valores.map((val, idx) => (
+                <div key={idx} style={{display:'flex', alignItems:'center', gap:'8px'}}>
+                  {/* Orden */}
+                  <div style={{display:'flex', flexDirection:'column', gap:'2px'}}>
+                    <button
+                      onClick={() => moveItem(idx, -1)}
+                      disabled={idx === 0}
+                      style={{background:'none', border:'1px solid #e0e0dc', borderRadius:'4px', width:'20px', height:'18px', cursor:'pointer', fontSize:'9px', color: idx===0?'#ccc':'#666', display:'flex', alignItems:'center', justifyContent:'center'}}
+                    >▲</button>
+                    <button
+                      onClick={() => moveItem(idx, 1)}
+                      disabled={idx === current.valores.length - 1}
+                      style={{background:'none', border:'1px solid #e0e0dc', borderRadius:'4px', width:'20px', height:'18px', cursor:'pointer', fontSize:'9px', color: idx===current.valores.length-1?'#ccc':'#666', display:'flex', alignItems:'center', justifyContent:'center'}}
+                    >▼</button>
+                  </div>
+                  <input
+                    value={val}
+                    onChange={e => updateItem(idx, e.target.value)}
+                    placeholder={'Nombre de ' + current.label.slice(0,-1).toLowerCase()}
+                    style={{flex:1}}
+                  />
+                  <button className="btn-danger" onClick={() => removeItem(idx)}>x</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {current.valores.length > 0 && (
+            <div style={{display:'flex', justifyContent:'flex-end', gap:'8px', borderTop:'1px solid #e8e8e4', paddingTop:'1rem'}}>
+              <button className="btn-secondary" onClick={() => {
+                setMarcas([...config.marcas]);
+                setCategorias([...config.categorias]);
+                setProveedores([...config.proveedores]);
+              }}>Descartar cambios</button>
+              <button className="btn-primary" onClick={saveTab} disabled={saving}>
+                {saving ? 'Guardando...' : 'Guardar ' + current.label}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
