@@ -130,7 +130,12 @@ function Login({
     }
   }, "Sistema de gestion"))), err && /*#__PURE__*/React.createElement("div", {
     className: "err-msg"
-  }, err), /*#__PURE__*/React.createElement("div", {
+  }, err), /*#__PURE__*/React.createElement("form", {
+    onSubmit: e => {
+      e.preventDefault();
+      handleLogin();
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     className: "form-group"
   }, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
@@ -139,16 +144,15 @@ function Login({
     placeholder: "Ingresa tu contrasena",
     value: pass,
     onChange: e => setPass(e.target.value),
-    onKeyDown: e => e.key === 'Enter' && handleLogin(),
     autoFocus: true
   })), /*#__PURE__*/React.createElement("button", {
+    type: "submit",
     className: "btn-primary",
     style: {
       width: '100%'
     },
-    onClick: handleLogin,
     disabled: loading
-  }, loading ? 'Verificando...' : 'Ingresar')));
+  }, loading ? 'Verificando...' : 'Ingresar'))));
 }
 
 // ─── Main App ────────────────────────────────────────────────────────────────
@@ -3126,7 +3130,7 @@ function Configuracion({
   config,
   onRefresh
 }) {
-  const [tab, setTab] = useState('marcas');
+  const [tab, setTab] = useState('marca');
   const [saving, setSaving] = useState(false);
 
   // Estado local editable por tab
