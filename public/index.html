@@ -3234,11 +3234,7 @@ function Configuracion({
       fontSize: '11px',
       opacity: 0.7
     }
-  }, (tab === t.id ? current.valores : config[{
-    marca: 'marcas',
-    categoria: 'categorias',
-    proveedor: 'proveedores'
-  }[t.id]] || []).length, " items"))))), /*#__PURE__*/React.createElement("div", {
+  }, (tab === t.id ? current.valores : t.id === 'marca' ? config.marcas : t.id === 'categoria' ? config.categorias : config.proveedores).length, " items"))))), /*#__PURE__*/React.createElement("div", {
     className: "card"
   }, /*#__PURE__*/React.createElement("div", {
     style: {
