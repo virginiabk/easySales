@@ -1895,9 +1895,34 @@ function Productos({
       const closeBtn = document.getElementById('close-'+modalId);
       closeBtn.onclick = closeFn;
       const video = document.getElementById('video-'+modalId);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
       navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}}}).then(stream => {
         video.srcObject = stream;
         video.play();
+        let scanning = true;
+        const detectBarcode = async () => {
+          if (!scanning || !document.getElementById(modalId)) return;
+          try {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            if (canvas.width > 0) {
+              ctx.drawImage(video, 0, 0);
+              if ('BarcodeDetector' in window) {
+                const detector = new window.BarcodeDetector({formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39']});
+                const barcodes = await detector.detect(canvas);
+                if (barcodes.length > 0 && barcodes[0].rawValue) {
+                  setForm({...form, codigo_barras: barcodes[0].rawValue});
+                  scanning = false;
+                  closeFn();
+                  return;
+                }
+              }
+            }
+          } catch(e) {}
+          if (scanning) requestAnimationFrame(detectBarcode);
+        };
+        requestAnimationFrame(detectBarcode);
       }).catch(e => {
         alert('No se pudo acceder a la cámara');
         closeFn();
