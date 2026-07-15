@@ -1867,7 +1867,9 @@ function Productos({
     }
   })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
-  }, "C\xF3d. de barras"), /*#__PURE__*/React.createElement("input", {
+  }, "C\xF3d. de barras"), /*#__PURE__*/React.createElement("div", {
+    style: { display: 'flex', gap: '8px' }
+  }, /*#__PURE__*/React.createElement("input", {
     value: form.codigo_barras,
     onChange: e => setForm({
       ...form,
@@ -1875,9 +1877,15 @@ function Productos({
     }),
     placeholder: "Escanear o escribir",
     style: {
-      fontFamily: 'monospace'
+      fontFamily: 'monospace',
+      flex: 1
     }
-  }))), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn-secondary btn-sm",
+    onClick: () => alert('Escaneo de códigos disponible en mobile. Escribe manualmente o usa tu app de escaneo.'),
+    style: { padding: '8px 12px', whiteSpace: 'nowrap' }
+  }, "📱")))), /*#__PURE__*/React.createElement("div", {
     className: "form-row"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
