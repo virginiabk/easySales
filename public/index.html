@@ -1894,13 +1894,17 @@ function Productos({
     className: "form-group"
   }, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
-  }, "Descripci\xF3n"), /*#__PURE__*/React.createElement("input", {
+  }, "Descripci\xF3n"), /*#__PURE__*/React.createElement("textarea", {
     value: form.descripcion,
     onChange: e => setForm({
       ...form,
       descripcion: e.target.value
     }),
-    placeholder: "Color, material, talle, etc."
+    placeholder: "Color, material, talle, etc.",
+    style: {
+      minHeight: '100px',
+      resize: 'vertical'
+    }
   })), /*#__PURE__*/React.createElement("div", {
     className: "form-row"
   }, /*#__PURE__*/React.createElement("div", {
