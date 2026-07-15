@@ -69,6 +69,83 @@ const {
   createClient
 } = supabase;
 
+// ─── Cliente Proxy ────────────────────────────────────────────────────────────
+// Intercepta las peticiones a Supabase y las redirige al proxy del servidor.
+function createProxyClient(sbUrl, sbKey, token) {
+  const client = createClient(sbUrl, sbKey);
+  const originalFrom = client.from.bind(client);
+
+  client.from = function(table) {
+    const builder = originalFrom(table);
+    const originalSelect = builder.select.bind(builder);
+    const originalInsert = builder.insert.bind(builder);
+    const originalUpdate = builder.update.bind(builder);
+    const originalDelete = builder.delete.bind(builder);
+
+    builder.select = function(columns) {
+      const query = originalSelect(columns);
+      return proxyQuery(query, token);
+    };
+    builder.insert = function(data) {
+      const query = originalInsert(data);
+      return proxyQuery(query, token);
+    };
+    builder.update = function(data) {
+      const query = originalUpdate(data);
+      return proxyQuery(query, token);
+    };
+    builder.delete = function() {
+      const query = originalDelete();
+      return proxyQuery(query, token);
+    };
+
+    return builder;
+  };
+
+  return client;
+}
+
+function proxyQuery(query, token) {
+  const originalThen = query.then.bind(query);
+
+  query.then = function(onFulfilled, onRejected) {
+    return originalThen(
+      async (result) => {
+        if (result && result.data !== undefined) return onFulfilled?.(result);
+
+        try {
+          const url = new URL(query.url || query.queryBuilder?.url || '');
+          const path = url.pathname.replace('/rest/v1/', '');
+          const queryStr = url.search;
+
+          const proxyUrl = `/api/supabase/${path}${queryStr}`;
+          const response = await fetch(proxyUrl, {
+            method: query.method || 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: query.body ? JSON.stringify(query.body) : undefined
+          });
+
+          if (!response.ok) {
+            const error = await response.json();
+            throw error;
+          }
+
+          const data = await response.json();
+          return onFulfilled?.({ data, error: null });
+        } catch (error) {
+          return onRejected?.(error) || onFulfilled?.({ data: null, error });
+        }
+      },
+      onRejected
+    );
+  };
+
+  return query;
+}
+
 // ─── Login ────────────────────────────────────────────────────────────────────
 // Las credenciales de Supabase NUNCA estan en este archivo.
 // El servidor las entrega solo si la contraseña es correcta.
@@ -144,7 +221,8 @@ function Login({
     placeholder: "Ingresa tu contrasena",
     value: pass,
     onChange: e => setPass(e.target.value),
-    autoFocus: true
+    autoFocus: true,
+    autoComplete: "new-password"
   })), /*#__PURE__*/React.createElement("button", {
     type: "submit",
     className: "btn-primary",
@@ -196,7 +274,7 @@ function App() {
         sbUrl,
         sbKey
       } = await res.json();
-      const c = createClient(sbUrl, sbKey);
+      const c = createProxyClient(sbUrl, sbKey, savedToken);
       setSb(c);
       setToken(savedToken);
       setLoading(false);
@@ -247,7 +325,7 @@ function App() {
   }, "Verificando sesion...");
   if (!sb) return /*#__PURE__*/React.createElement(Login, {
     onAuth: (sbUrl, sbKey, tok) => {
-      const c = createClient(sbUrl, sbKey);
+      const c = createProxyClient(sbUrl, sbKey, tok);
       setSb(c);
       setToken(tok);
       load(c);

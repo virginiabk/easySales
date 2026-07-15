@@ -110,6 +110,38 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Proxy a Supabase ──────────────────────────────────────────────────────────
+// Las peticiones del cliente van aquí, no directamente a Supabase.
+// Esto evita CORS y mantiene la SUPABASE_KEY segura en el servidor.
+app.all('/api/supabase/*', requireAuth, async (req, res) => {
+  try {
+    const path = req.params[0];
+    const url = new URL(`${SUPABASE_URL}/rest/v1/${path}`);
+
+    // Copiar query params del cliente
+    Object.entries(req.query).forEach(([key, val]) => {
+      url.searchParams.append(key, val);
+    });
+
+    const response = await fetch(url.toString(), {
+      method: req.method,
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': req.headers['prefer'] || ''
+      },
+      body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body)
+    });
+
+    const data = await response.json();
+    res.status(response.status).json(data);
+  } catch (err) {
+    console.error('Proxy error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Sirve el HTML para cualquier otra ruta (SPA fallback)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
