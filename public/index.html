@@ -7,7 +7,6 @@
 <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f2; color: #1a1a18; min-height: 100vh; font-size: 14px; }
@@ -1884,48 +1883,24 @@ function Productos({
     type: "button",
     className: "btn-secondary btn-sm",
     onClick: () => {
-      const modalId = 'scanner-modal-' + Date.now();
-      const html = `<div id="${modalId}" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:10000;display:flex;flex-direction:column;justify-content:center;align-items:center"><video id="video-${modalId}" style="width:100%;height:100%;object-fit:cover"></video><canvas id="canvas-${modalId}" style="display:none"></canvas><div style="position:absolute;top:20px;left:20px;right:20px;background:rgba(0,0,0,0.7);color:#fff;padding:12px;border-radius:6px;text-align:center;font-size:14px">📱 Apunta al código...</div><div style="position:absolute;bottom:20px;left:20px;right:20px;display:flex;gap:10px"><button onclick="document.getElementById('${modalId}').remove()" style="flex:1;padding:12px;background:#E24B4A;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:500;font-size:14px">Cerrar</button></div></div>`;
+      const modalId = 'scanner-' + Date.now();
+      const closeFn = () => {
+        const v = document.getElementById('video-'+modalId);
+        if (v && v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
+        const m = document.getElementById(modalId);
+        if (m) m.remove();
+      };
+      const html = `<div id="${modalId}" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:10000"><video id="video-${modalId}" style="width:100%;height:100%;object-fit:cover;display:block"></video><div style="position:absolute;top:0;left:0;right:0;background:rgba(0,0,0,0.8);color:#fff;padding:16px;text-align:center"><div style="font-size:16px;font-weight:600;margin-bottom:8px">📱 Cámara</div><div style="font-size:12px;opacity:0.8">Apunta al código de barras</div></div><div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.8);padding:12px"><button id="close-${modalId}" style="width:100%;padding:14px;background:#E24B4A;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:16px">✕ Cerrar</button></div></div>`;
       document.body.insertAdjacentHTML('beforeend', html);
-      const video = document.getElementById(`video-${modalId}`);
-      const canvas = document.getElementById(`canvas-${modalId}`);
-      const ctx = canvas.getContext('2d');
-      const modal = document.getElementById(modalId);
-      let scanning = true;
+      document.getElementById('close-'+modalId).onclick = closeFn;
+      const video = document.getElementById('video-'+modalId);
       navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}}}).then(stream => {
         video.srcObject = stream;
         video.play();
-        const scan = () => {
-          if (!scanning || !modal.parentElement) return;
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          if (canvas.width > 0 && canvas.height > 0) {
-            ctx.drawImage(video, 0, 0);
-            try {
-              const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const code = window.jsbarcode ? window.jsbarcode.scan(imgData) : null;
-              if (code && code.length > 3) {
-                setForm({...form, codigo_barras: code});
-                video.srcObject.getTracks().forEach(t => t.stop());
-                scanning = false;
-                modal.remove();
-                return;
-              }
-            } catch(e) {}
-          }
-          requestAnimationFrame(scan);
-        };
-        requestAnimationFrame(scan);
-      }).catch(() => {
+      }).catch(e => {
         alert('No se pudo acceder a la cámara');
-        document.getElementById(modalId).remove();
+        closeFn();
       });
-      const closeBtn = document.querySelector(`#${modalId} button`);
-      closeBtn.onclick = () => {
-        scanning = false;
-        if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
-        document.getElementById(modalId).remove();
-      };
     },
     style: { padding: '8px 12px', whiteSpace: 'nowrap' }
   }, "📱")))), /*#__PURE__*/React.createElement("div", {
