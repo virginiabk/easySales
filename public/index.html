@@ -1890,39 +1890,21 @@ function Productos({
         const m = document.getElementById(modalId);
         if (m) m.remove();
       };
-      const html = `<div id="${modalId}" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:10000"><video id="video-${modalId}" style="width:100%;height:100%;object-fit:cover;display:block"></video><div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10001"><button id="close-${modalId}" style="width:80px;height:80px;border-radius:50%;background:#E24B4A;color:white;border:none;cursor:pointer;font-weight:700;font-size:32px;box-shadow:0 4px 12px rgba(0,0,0,0.5)">✕</button></div></div>`;
+      const html = `<div id="${modalId}" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#000;z-index:10000"><video id="video-${modalId}" style="width:100%;height:100%;object-fit:cover;display:block"></video><div style="position:fixed;bottom:80px;left:20px;right:20px;z-index:10001;background:rgba(0,0,0,0.9);padding:16px;border-radius:8px"><div style="color:#fff;font-size:12px;margin-bottom:8px;text-align:center">Escribe el código manualmente</div><input id="input-${modalId}" type="text" placeholder="Código de barras" style="width:100%;padding:10px;border:none;border-radius:6px;font-size:16px;font-family:monospace" autofocus></div><div style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:10001"><button id="close-${modalId}" style="width:80px;height:80px;border-radius:50%;background:#E24B4A;color:white;border:none;cursor:pointer;font-weight:700;font-size:32px;box-shadow:0 4px 12px rgba(0,0,0,0.5)">✕</button></div></div>`;
       document.body.insertAdjacentHTML('beforeend', html);
       const closeBtn = document.getElementById('close-'+modalId);
+      const inputField = document.getElementById('input-'+modalId);
       closeBtn.onclick = closeFn;
+      inputField.onkeypress = (e) => {
+        if (e.key === 'Enter' && inputField.value.trim()) {
+          setForm({...form, codigo_barras: inputField.value.trim()});
+          closeFn();
+        }
+      };
       const video = document.getElementById('video-'+modalId);
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
       navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}}}).then(stream => {
         video.srcObject = stream;
         video.play();
-        let scanning = true;
-        const detectBarcode = async () => {
-          if (!scanning || !document.getElementById(modalId)) return;
-          try {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            if (canvas.width > 0) {
-              ctx.drawImage(video, 0, 0);
-              if ('BarcodeDetector' in window) {
-                const detector = new window.BarcodeDetector({formats: ['code_128', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_39']});
-                const barcodes = await detector.detect(canvas);
-                if (barcodes.length > 0 && barcodes[0].rawValue) {
-                  setForm({...form, codigo_barras: barcodes[0].rawValue});
-                  scanning = false;
-                  closeFn();
-                  return;
-                }
-              }
-            }
-          } catch(e) {}
-          if (scanning) requestAnimationFrame(detectBarcode);
-        };
-        requestAnimationFrame(detectBarcode);
       }).catch(e => {
         alert('No se pudo acceder a la cámara');
         closeFn();
