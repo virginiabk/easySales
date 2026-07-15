@@ -1344,6 +1344,7 @@ function Productos({
   const [detalle, setDetalle] = useState(null);
   const [editando, setEditando] = useState(null);
   const [q, setQ] = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('todos');
   const [imagenes, setImagenes] = useState([]);
   const [variantes, setVariantes] = useState([]);
   const [detTab, setDetTab] = useState('variantes');
@@ -1490,7 +1491,21 @@ function Productos({
     }).eq('id', p.id);
     onRefresh();
   };
-  const filtrados = productos.filter(p => p.nombre.toLowerCase().includes(q.toLowerCase()) || (p.categoria || '').toLowerCase().includes(q.toLowerCase()) || (p.marca || '').toLowerCase().includes(q.toLowerCase()) || (p.proveedor || '').toLowerCase().includes(q.toLowerCase()) || (p.codigo_barras || '').includes(q) || (p.cod_interno_proveedor || '').includes(q));
+  const toggleActivo = async (p) => {
+    await sb.from('productos').update({
+      activo: !p.activo
+    }).eq('id', p.id);
+    onRefresh();
+  };
+  const filtrados = productos.filter(p => {
+    const coincide = p.nombre.toLowerCase().includes(q.toLowerCase()) || (p.categoria || '').toLowerCase().includes(q.toLowerCase()) || (p.marca || '').toLowerCase().includes(q.toLowerCase()) || (p.proveedor || '').toLowerCase().includes(q.toLowerCase()) || (p.codigo_barras || '').includes(q) || (p.cod_interno_proveedor || '').includes(q);
+    const stock = p.stock_actual || 0;
+    if (filtroEstado === 'disponibles') return coincide && p.activo && stock > 0;
+    if (filtroEstado === 'sin_stock') return coincide && (!p.activo || stock === 0);
+    if (filtroEstado === 'activos') return coincide && p.activo;
+    if (filtroEstado === 'inactivos') return coincide && !p.activo;
+    return coincide;
+  });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'flex',
@@ -1515,9 +1530,35 @@ function Productos({
     value: q,
     onChange: e => setQ(e.target.value),
     style: {
-      maxWidth: '420px'
+      marginBottom: '10px'
     }
-  })), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '8px',
+      flexWrap: 'wrap'
+    }
+  }, [
+    { val: 'todos', label: 'Todos' },
+    { val: 'activos', label: '✓ Activos' },
+    { val: 'inactivos', label: '✗ Inactivos' },
+    { val: 'disponibles', label: '📦 Disponibles' },
+    { val: 'sin_stock', label: '⚠ Sin stock' }
+  ].map(f => /*#__PURE__*/React.createElement("button", {
+    key: f.val,
+    onClick: () => setFiltroEstado(f.val),
+    style: {
+      padding: '6px 12px',
+      fontSize: '12px',
+      fontWeight: '500',
+      border: filtroEstado === f.val ? '1px solid #1D9E75' : '1px solid #d0d0cc',
+      background: filtroEstado === f.val ? '#E1F5EE' : '#fff',
+      color: filtroEstado === f.val ? '#0F6E56' : '#666',
+      borderRadius: '6px',
+      cursor: 'pointer',
+      transition: 'all 0.15s'
+    }
+  }, f.label)))), /*#__PURE__*/React.createElement("div", {
     className: "card",
     style: {
       padding: 0,
@@ -1530,7 +1571,7 @@ function Productos({
       fontSize: '32px',
       marginBottom: '8px'
     }
-  }, "\uD83D\uDCE6"), "No hay productos.") : /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Producto"), /*#__PURE__*/React.createElement("th", null, "Marca / Prov."), /*#__PURE__*/React.createElement("th", null, "C\xF3d. barras"), /*#__PURE__*/React.createElement("th", null, "Costo"), /*#__PURE__*/React.createElement("th", null, "Precio"), /*#__PURE__*/React.createElement("th", null, "Margen"), /*#__PURE__*/React.createElement("th", null, "Stock"), /*#__PURE__*/React.createElement("th", null, "Estado"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, filtrados.map(p => {
+  }, "\uD83D\uDCE6"), "No hay productos.") : /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Producto"), /*#__PURE__*/React.createElement("th", null, "Marca / Prov."), /*#__PURE__*/React.createElement("th", null, "C\xF3d. barras"), /*#__PURE__*/React.createElement("th", null, "Costo"), /*#__PURE__*/React.createElement("th", null, "Precio"), /*#__PURE__*/React.createElement("th", null, "Margen"), /*#__PURE__*/React.createElement("th", null, "Stock"), /*#__PURE__*/React.createElement("th", null, "Estado"), /*#__PURE__*/React.createElement("th", null, "Activo"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, filtrados.map(p => {
     const margen = p.precio_venta > 0 ? Math.round((p.precio_venta - p.precio_costo) / p.precio_venta * 100) : 0;
     const stock = stockTotal(p);
     const st = stock === 0 ? 'tag-none' : stock <= p.stock_minimo ? 'tag-low' : 'tag-ok';
@@ -1689,7 +1730,13 @@ function Productos({
       onClick: () => ajustar(p, 1)
     }, "+"))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
       className: 'tag ' + st
-    }, stLabel)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+    }, stLabel)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
+      className: p.activo ? "btn-primary btn-sm" : "btn-secondary btn-sm",
+      onClick: () => toggleActivo(p),
+      style: {
+        width: '100%'
+      }
+    }, p.activo ? '✓ Activo' : '✗ Inactivo')), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
       style: {
         display: 'flex',
         gap: '5px'
