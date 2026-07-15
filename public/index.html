@@ -1353,6 +1353,7 @@ function Productos({
     categoria: '',
     marca: '',
     proveedor: '',
+    codigoproducto: '',
     codigo_barras: '',
     cod_interno_proveedor: '',
     fecha_ultimo_ingreso: '',
@@ -1389,6 +1390,7 @@ function Productos({
       categoria: p.categoria || '',
       marca: p.marca || '',
       proveedor: p.proveedor || '',
+      codigoproducto: p.codigoproducto || '',
       codigo_barras: p.codigo_barras || '',
       cod_interno_proveedor: p.cod_interno_proveedor || '',
       fecha_ultimo_ingreso: p.fecha_ultimo_ingreso ? p.fecha_ultimo_ingreso.split('T')[0] : '',
@@ -1414,6 +1416,7 @@ function Productos({
         categoria: form.categoria,
         marca: form.marca,
         proveedor: form.proveedor,
+        codigoproducto: form.codigoproducto || null,
         codigo_barras: form.codigo_barras || null,
         cod_interno_proveedor: form.cod_interno_proveedor || null,
         fecha_ultimo_ingreso: form.fecha_ultimo_ingreso || null,
@@ -1847,6 +1850,18 @@ function Productos({
     key: c,
     value: c
   }, c)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "form-label"
+  }, "C\xF3d. de producto"), /*#__PURE__*/React.createElement("input", {
+    value: form.codigoproducto,
+    onChange: e => setForm({
+      ...form,
+      codigoproducto: e.target.value
+    }),
+    placeholder: "Código interno del producto",
+    style: {
+      fontFamily: 'monospace'
+    }
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
   }, "C\xF3d. de barras"), /*#__PURE__*/React.createElement("input", {
     value: form.codigo_barras,
@@ -3501,7 +3516,7 @@ function BusquedaGlobal({
 }) {
   if (!q.trim()) return null;
   const lq = q.toLowerCase();
-  const rProd = productos.filter(p => p.nombre.toLowerCase().includes(lq) || (p.marca || '').toLowerCase().includes(lq) || (p.categoria || '').toLowerCase().includes(lq) || (p.proveedor || '').toLowerCase().includes(lq) || (p.codigo_barras || '').includes(lq) || (p.cod_interno_proveedor || '').includes(lq) || (p.descripcion || '').toLowerCase().includes(lq));
+  const rProd = productos.filter(p => p.nombre.toLowerCase().includes(lq) || (p.marca || '').toLowerCase().includes(lq) || (p.categoria || '').toLowerCase().includes(lq) || (p.proveedor || '').toLowerCase().includes(lq) || (p.codigoproducto || '').includes(lq) || (p.codigo_barras || '').includes(lq) || (p.cod_interno_proveedor || '').includes(lq) || (p.descripcion || '').toLowerCase().includes(lq));
   const rClientes = clientes.filter(c => c.nombre.toLowerCase().includes(lq) || (c.telefono || '').includes(lq) || (c.email || '').toLowerCase().includes(lq) || (c.notas || '').toLowerCase().includes(lq));
   const rVentas = ventas.filter(v => (v.metodo_pago || '').toLowerCase().includes(lq) || (v.notas || '').toLowerCase().includes(lq) || (v.estado || '').toLowerCase().includes(lq) || new Date(v.fecha).toLocaleDateString('es-AR').includes(lq));
   const rCompras = compras.filter(c => (c.proveedor || '').toLowerCase().includes(lq) || (c.notas || '').toLowerCase().includes(lq) || (c.estado || '').toLowerCase().includes(lq) || new Date(c.fecha).toLocaleDateString('es-AR').includes(lq));
