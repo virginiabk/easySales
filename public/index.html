@@ -1356,9 +1356,7 @@ function Productos({
     categoria: '',
     marca: '',
     proveedor: '',
-    codigoproducto: '',
     codigo_barras: '',
-    cod_interno_proveedor: '',
     fecha_ultimo_ingreso: '',
     descripcion: '',
     precio_costo: '',
@@ -1393,7 +1391,6 @@ function Productos({
       categoria: p.categoria || '',
       marca: p.marca || '',
       proveedor: p.proveedor || '',
-      codigoproducto: p.codigoproducto || '',
       codigo_barras: p.codigo_barras || '',
       cod_interno_proveedor: p.cod_interno_proveedor || '',
       fecha_ultimo_ingreso: p.fecha_ultimo_ingreso ? p.fecha_ultimo_ingreso.split('T')[0] : '',
@@ -1419,9 +1416,7 @@ function Productos({
         categoria: form.categoria,
         marca: form.marca,
         proveedor: form.proveedor,
-        codigoproducto: form.codigoproducto || null,
         codigo_barras: form.codigo_barras || null,
-        cod_interno_proveedor: form.cod_interno_proveedor || null,
         fecha_ultimo_ingreso: form.fecha_ultimo_ingreso || null,
         descripcion: form.descripcion,
         precio_costo: +form.precio_costo || 0,
@@ -1504,7 +1499,7 @@ function Productos({
     onRefresh();
   };
   const filtrados = productos.filter(p => {
-    const coincide = p.nombre.toLowerCase().includes(q.toLowerCase()) || (p.categoria || '').toLowerCase().includes(q.toLowerCase()) || (p.marca || '').toLowerCase().includes(q.toLowerCase()) || (p.proveedor || '').toLowerCase().includes(q.toLowerCase()) || (p.codigo_barras || '').includes(q) || (p.cod_interno_proveedor || '').includes(q);
+    const coincide = p.nombre.toLowerCase().includes(q.toLowerCase()) || (p.categoria || '').toLowerCase().includes(q.toLowerCase()) || (p.marca || '').toLowerCase().includes(q.toLowerCase()) || (p.proveedor || '').toLowerCase().includes(q.toLowerCase()) || (p.codigo_barras || '').includes(q);
     const stock = p.stock_actual || 0;
     if (filtroEstado === 'disponibles') return coincide && p.activo && stock > 0;
     if (filtroEstado === 'sin_stock') return coincide && (!p.activo || stock === 0);
@@ -1854,18 +1849,6 @@ function Productos({
     value: c
   }, c)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
-  }, "C\xF3d. de producto"), /*#__PURE__*/React.createElement("input", {
-    value: form.codigoproducto,
-    onChange: e => setForm({
-      ...form,
-      codigoproducto: e.target.value
-    }),
-    placeholder: "Código interno",
-    style: {
-      fontFamily: 'monospace'
-    }
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
   }, "C\xF3d. de barras"), /*#__PURE__*/React.createElement("div", {
     style: { display: 'flex', gap: '8px' }
   }, /*#__PURE__*/React.createElement("input", {
@@ -1912,21 +1895,7 @@ function Productos({
       });
     },
     style: { padding: '8px 12px', whiteSpace: 'nowrap' }
-  }, "📱")))), /*#__PURE__*/React.createElement("div", {
-    className: "form-row"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
-    className: "form-label"
-  }, "C\xF3d. interno proveedor"), /*#__PURE__*/React.createElement("input", {
-    value: form.cod_interno_proveedor,
-    onChange: e => setForm({
-      ...form,
-      cod_interno_proveedor: e.target.value
-    }),
-    placeholder: "Ref. del proveedor",
-    style: {
-      fontFamily: 'monospace'
-    }
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+  }, "📱")))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
   }, "\xDAltimo ingreso"), /*#__PURE__*/React.createElement("input", {
     type: "date",
@@ -1935,7 +1904,7 @@ function Productos({
       ...form,
       fecha_ultimo_ingreso: e.target.value
     })
-  })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
   }, "Fotos (", imagenes.length, ")"), /*#__PURE__*/React.createElement(GaleriaUploader, {
     sb: sb,
