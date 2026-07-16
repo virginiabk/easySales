@@ -1869,6 +1869,7 @@ function Productos({
   }, "C\xF3d. de barras"), /*#__PURE__*/React.createElement("div", {
     style: { display: 'flex', gap: '8px' }
   }, /*#__PURE__*/React.createElement("input", {
+    inputMode: "text",
     value: form.codigo_barras,
     onChange: e => setForm({
       ...form,
@@ -1965,7 +1966,8 @@ function Productos({
   }, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
   }, "Costo ($)"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
+    type: "text",
+    inputMode: "decimal",
     value: form.precio_costo,
     onChange: e => setForm({
       ...form,
@@ -1977,7 +1979,8 @@ function Productos({
   }, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
   }, "Precio venta ($)"), /*#__PURE__*/React.createElement("input", {
-    type: "number",
+    type: "text",
+    inputMode: "decimal",
     value: form.precio_venta,
     onChange: e => setForm({
       ...form,
