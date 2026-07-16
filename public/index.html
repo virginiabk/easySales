@@ -305,9 +305,15 @@ function App() {
     if (ci.data) setCompraItems(ci.data);
     if (cfg.data) {
       const parse = tipo => cfg.data.find(r => r.tipo === tipo)?.valores || [];
+      const rawCategorias = parse('categoria');
+      const categorias = rawCategorias.map(cat =>
+        typeof cat === 'string'
+          ? { nombre: cat, stock_minimo: 3 }
+          : cat
+      );
       setConfig({
         marcas: parse('marca'),
-        categorias: parse('categoria'),
+        categorias: categorias,
         proveedores: parse('proveedor')
       });
     }
@@ -1881,16 +1887,24 @@ function Productos({
     className: "form-label"
   }, "Categor\xEDa"), /*#__PURE__*/React.createElement("select", {
     value: form.categoria,
-    onChange: e => setForm({
-      ...form,
-      categoria: e.target.value
-    })
+    onChange: e => {
+      const selectedCat = CATS.find(c => (typeof c === 'string' ? c : c.nombre) === e.target.value);
+      const stockMin = selectedCat && typeof selectedCat === 'object' ? selectedCat.stock_minimo : 3;
+      setForm({
+        ...form,
+        categoria: e.target.value,
+        stock_minimo: String(stockMin)
+      });
+    }
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
-  }, "Sin categor\xEDa"), CATS.map(c => /*#__PURE__*/React.createElement("option", {
-    key: c,
-    value: c
-  }, c)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+  }, "Sin categor\xEDa"), CATS.map(c => {
+    const nombre = typeof c === 'string' ? c : c.nombre;
+    return /*#__PURE__*/React.createElement("option", {
+      key: nombre,
+      value: nombre
+    }, nombre);
+  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "form-label"
   }, "C\xF3d. de producto"), /*#__PURE__*/React.createElement("input", {
     value: form.codigoproducto,
@@ -3552,7 +3566,26 @@ function Configuracion({
       alignItems: 'center',
       justifyContent: 'center'
     }
-  }, "\u25BC")), /*#__PURE__*/React.createElement("input", {
+  }, "\u25BC")), tab === 'categoria' ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 80px',
+      gap: '8px',
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    value: typeof val === 'string' ? val : val.nombre || '',
+    onChange: e => updateItem(idx, typeof val === 'string' ? e.target.value : { ...val, nombre: e.target.value }),
+    placeholder: 'Nombre de categor\u00EDa',
+    style: {}
+  }), /*#__PURE__*/React.createElement("input", {
+    type: 'number',
+    min: '1',
+    value: typeof val === 'string' ? 3 : (val.stock_minimo || 3),
+    onChange: e => updateItem(idx, typeof val === 'string' ? { nombre: val, stock_minimo: +e.target.value } : { ...val, stock_minimo: +e.target.value }),
+    placeholder: 'Stock m\u00EDn',
+    style: {}
+  })) : /*#__PURE__*/React.createElement("input", {
     value: val,
     onChange: e => updateItem(idx, e.target.value),
     placeholder: 'Nombre de ' + current.label.slice(0, -1).toLowerCase(),
