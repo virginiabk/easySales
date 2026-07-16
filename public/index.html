@@ -1584,25 +1584,26 @@ function Productos({
       const stock = vars.length > 0 ? vars.reduce((s, v) => s + Number(v.stock || 0), 0) : p.stock_actual;
       const availability = stock > 0 ? 'in stock' : 'out of stock';
       const status = (!p.activo || stock === 0) ? 'archived' : 'active';
+      const productId = p.codigoproducto || p.id;
 
       if (vars.length === 0) {
         // Sin variantes
         const row = [
           p.marca || '',
-          p.id,
+          productId,
           p.nombre,
           p.precio_venta || 0,
           stock,
           availability,
           status,
-          (p.descripcion || '').replace(/\r?\n/g, ' '),
+          p.descripcion || '',
           'new',
           imgs[0]?.url || '',
           imgs[1]?.url || '',
           imgs[2]?.url || '',
           imgs[3]?.url || '',
           imgs[4]?.url || '',
-          p.id,
+          productId,
           '',
           '',
           p.categoria || ''
@@ -1613,20 +1614,20 @@ function Productos({
         vars.forEach(v => {
           const row = [
             p.marca || '',
-            `${p.id}-${v.id}`,
+            `${productId}-${v.id}`,
             p.nombre,
             p.precio_venta || 0,
             v.stock || 0,
             v.stock > 0 ? 'in stock' : 'out of stock',
             (!p.activo || v.stock === 0) ? 'archived' : 'active',
-            (p.descripcion || '').replace(/\r?\n/g, ' '),
+            p.descripcion || '',
             'new',
             imgs[0]?.url || '',
             imgs[1]?.url || '',
             imgs[2]?.url || '',
             imgs[3]?.url || '',
             imgs[4]?.url || '',
-            p.id,
+            productId,
             v.color || '',
             v.talle || '',
             p.categoria || ''
@@ -1640,7 +1641,7 @@ function Productos({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Catálogo');
 
-    // Ajustar ancho de columnas
+    // Ajustar ancho de columnas y permitir saltos de línea
     ws['!cols'] = [
       { wch: 15 }, // brand
       { wch: 40 }, // ID
@@ -1649,7 +1650,7 @@ function Productos({
       { wch: 12 }, // quantity
       { wch: 12 }, // availability
       { wch: 12 }, // status
-      { wch: 40 }, // description
+      { wch: 50 }, // description
       { wch: 10 }, // condition
       { wch: 50 }, // image_link
       { wch: 50 }, // additional_image_link
@@ -1661,6 +1662,14 @@ function Productos({
       { wch: 10 }, // size
       { wch: 15 }  // category
     ];
+
+    // Aplicar text wrap a todas las celdas de descripción
+    for (let i = 1; i < rows.length; i++) {
+      const descCell = XLSX.utils.encode_cell({ r: i, c: 7 }); // columna description
+      if (ws[descCell]) {
+        ws[descCell].s = { alignment: { wrapText: true, vertical: 'top' } };
+      }
+    }
 
     XLSX.writeFile(wb, `facebook-catalog-${new Date().toISOString().split('T')[0]}.xlsx`);
   };
