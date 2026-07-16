@@ -1573,9 +1573,17 @@ function Productos({
     onRefresh();
   };
   const exportToFacebook = () => {
+    const escapeCSV = (val) => {
+      const str = String(val || '');
+      if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+        return `"${str.replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+      }
+      return `"${str}"`;
+    };
+
     const rows = [];
     const header = ['brand', 'ID', 'title', 'price', 'quantity_to_sell_on_facebook', 'availability', 'status', 'description', 'condition', 'image_link', 'additional_image_link', 'additional_image_link2', 'additional_image_link3', 'additional_image_link4', 'item_group_id', 'color', 'size', 'category'];
-    rows.push(header.map(h => `"${h}"`).join(','));
+    rows.push(header.map(h => escapeCSV(h)).join(','));
 
     productos.forEach(p => {
       const vars = variantesDeProducto(p.id);
@@ -1606,7 +1614,7 @@ function Productos({
           '',
           p.categoria || ''
         ];
-        rows.push(row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+        rows.push(row.map(v => escapeCSV(v)).join(','));
       } else {
         // Con variantes
         vars.forEach(v => {
@@ -1630,7 +1638,7 @@ function Productos({
             v.talle || '',
             p.categoria || ''
           ];
-          rows.push(row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','));
+          rows.push(row.map(val => escapeCSV(val)).join(','));
         });
       }
     });
