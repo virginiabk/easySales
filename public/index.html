@@ -1149,7 +1149,9 @@ function VariantesEditor({
     color: '',
     talle: '',
     stock: 0,
-    codigo_barras: ''
+    codigo_barras: '',
+    codigoproducto: '',
+    cod_interno_proveedor: ''
   };
   const add = () => onChange([...variantes, {
     ...emptyVar
@@ -1170,12 +1172,12 @@ function VariantesEditor({
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr 70px 1fr auto',
+      gridTemplateColumns: '1fr 1fr 70px 1fr 1fr 1fr auto',
       gap: '6px',
       marginBottom: '4px',
       padding: '0 2px'
     }
-  }, ['Color', 'Talle', 'Stock', 'Cód. barras', ''].map((h, i) => /*#__PURE__*/React.createElement("div", {
+  }, ['Color', 'Talle', 'Stock', 'Cód. barras', 'Cód. producto', 'Cód. proveedor', ''].map((h, i) => /*#__PURE__*/React.createElement("div", {
     key: i,
     style: {
       fontSize: '10px',
@@ -1188,7 +1190,7 @@ function VariantesEditor({
     key: idx,
     style: {
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr 70px 1fr auto',
+      gridTemplateColumns: '1fr 1fr 70px 1fr 1fr 1fr auto',
       gap: '6px',
       marginBottom: '6px',
       alignItems: 'center'
@@ -1210,6 +1212,20 @@ function VariantesEditor({
     value: v.codigo_barras,
     onChange: e => update(idx, 'codigo_barras', e.target.value),
     placeholder: "Opcional",
+    style: {
+      fontFamily: 'monospace'
+    }
+  }), /*#__PURE__*/React.createElement("input", {
+    value: v.codigoproducto,
+    onChange: e => update(idx, 'codigoproducto', e.target.value),
+    placeholder: "Opt.",
+    style: {
+      fontFamily: 'monospace'
+    }
+  }), /*#__PURE__*/React.createElement("input", {
+    value: v.cod_interno_proveedor,
+    onChange: e => update(idx, 'cod_interno_proveedor', e.target.value),
+    placeholder: "Opt.",
     style: {
       fontFamily: 'monospace'
     }
@@ -1237,7 +1253,7 @@ function DetalleTabVariantes({
       }
     }, "Sin variantes. Este producto tiene stock \xFAnico.");
   }
-  return /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Color"), /*#__PURE__*/React.createElement("th", null, "Talle"), /*#__PURE__*/React.createElement("th", null, "Stock"), /*#__PURE__*/React.createElement("th", null, "C\xF3d. barras"))), /*#__PURE__*/React.createElement("tbody", null, vars.map(v => /*#__PURE__*/React.createElement("tr", {
+  return /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Color"), /*#__PURE__*/React.createElement("th", null, "Talle"), /*#__PURE__*/React.createElement("th", null, "Stock"), /*#__PURE__*/React.createElement("th", null, "C\xF3d. barras"), /*#__PURE__*/React.createElement("th", null, "C\xF3d. producto"), /*#__PURE__*/React.createElement("th", null, "C\xF3d. proveedor"))), /*#__PURE__*/React.createElement("tbody", null, vars.map(v => /*#__PURE__*/React.createElement("tr", {
     key: v.id
   }, /*#__PURE__*/React.createElement("td", null, v.color || /*#__PURE__*/React.createElement("span", {
     style: {
@@ -1262,6 +1278,26 @@ function DetalleTabVariantes({
     style: {
       color: '#ccc'
     }
+  }, "\u2014")), /*#__PURE__*/React.createElement("td", {
+    style: {
+      fontSize: '11px',
+      fontFamily: 'monospace',
+      color: '#888'
+    }
+  }, v.codigoproducto || /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#ccc'
+    }
+  }, "\u2014")), /*#__PURE__*/React.createElement("td", {
+    style: {
+      fontSize: '11px',
+      fontFamily: 'monospace',
+      color: '#888'
+    }
+  }, v.cod_interno_proveedor || /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: '#ccc'
+    }
   }, "\u2014"))))), /*#__PURE__*/React.createElement("tfoot", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     colSpan: 2,
     style: {
@@ -1274,7 +1310,7 @@ function DetalleTabVariantes({
       fontWeight: '600',
       paddingTop: '8px'
     }
-  }, vars.reduce((s, v) => s + Number(v.stock || 0), 0)), /*#__PURE__*/React.createElement("td", null))));
+  }, vars.reduce((s, v) => s + Number(v.stock || 0), 0)), /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", null))));
 }
 function DetalleTabFotos({
   imagenesDeProducto,
@@ -1473,7 +1509,9 @@ function Productos({
             color: v.color || null,
             talle: v.talle || null,
             stock: +v.stock || 0,
-            codigo_barras: v.codigo_barras || null
+            codigo_barras: v.codigo_barras || null,
+            codigoproducto: v.codigoproducto || null,
+            cod_interno_proveedor: v.cod_interno_proveedor || null
           })));
         }
       }
