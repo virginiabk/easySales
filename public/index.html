@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f2; color: #1a1a18; min-height: 100vh; font-size: 14px; }
@@ -1573,17 +1574,9 @@ function Productos({
     onRefresh();
   };
   const exportToFacebook = () => {
-    const escapeCSV = (val) => {
-      const str = String(val || '');
-      if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
-        return `"${str.replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
-      }
-      return `"${str}"`;
-    };
-
     const rows = [];
     const header = ['brand', 'ID', 'title', 'price', 'quantity_to_sell_on_facebook', 'availability', 'status', 'description', 'condition', 'image_link', 'additional_image_link', 'additional_image_link2', 'additional_image_link3', 'additional_image_link4', 'item_group_id', 'color', 'size', 'category'];
-    rows.push(header.map(h => escapeCSV(h)).join(','));
+    rows.push(header);
 
     productos.forEach(p => {
       const vars = variantesDeProducto(p.id);
@@ -1602,7 +1595,7 @@ function Productos({
           stock,
           availability,
           status,
-          p.descripcion || '',
+          (p.descripcion || '').replace(/\r?\n/g, ' '),
           'new',
           imgs[0]?.url || '',
           imgs[1]?.url || '',
@@ -1614,7 +1607,7 @@ function Productos({
           '',
           p.categoria || ''
         ];
-        rows.push(row.map(v => escapeCSV(v)).join(','));
+        rows.push(row);
       } else {
         // Con variantes
         vars.forEach(v => {
@@ -1626,7 +1619,7 @@ function Productos({
             v.stock || 0,
             v.stock > 0 ? 'in stock' : 'out of stock',
             (!p.activo || v.stock === 0) ? 'archived' : 'active',
-            p.descripcion || '',
+            (p.descripcion || '').replace(/\r?\n/g, ' '),
             'new',
             imgs[0]?.url || '',
             imgs[1]?.url || '',
@@ -1638,17 +1631,38 @@ function Productos({
             v.talle || '',
             p.categoria || ''
           ];
-          rows.push(row.map(val => escapeCSV(val)).join(','));
+          rows.push(row);
         });
       }
     });
 
-    const csv = rows.join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.setAttribute('href', URL.createObjectURL(blob));
-    link.setAttribute('download', `facebook-catalog-${new Date().toISOString().split('T')[0]}.csv`);
-    link.click();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Catálogo');
+
+    // Ajustar ancho de columnas
+    ws['!cols'] = [
+      { wch: 15 }, // brand
+      { wch: 40 }, // ID
+      { wch: 30 }, // title
+      { wch: 12 }, // price
+      { wch: 12 }, // quantity
+      { wch: 12 }, // availability
+      { wch: 12 }, // status
+      { wch: 40 }, // description
+      { wch: 10 }, // condition
+      { wch: 50 }, // image_link
+      { wch: 50 }, // additional_image_link
+      { wch: 50 }, // additional_image_link2
+      { wch: 50 }, // additional_image_link3
+      { wch: 50 }, // additional_image_link4
+      { wch: 40 }, // item_group_id
+      { wch: 15 }, // color
+      { wch: 10 }, // size
+      { wch: 15 }  // category
+    ];
+
+    XLSX.writeFile(wb, `facebook-catalog-${new Date().toISOString().split('T')[0]}.xlsx`);
   };
   const filtrados = productos.filter(p => {
     const coincide = p.nombre.toLowerCase().includes(q.toLowerCase()) || (p.categoria || '').toLowerCase().includes(q.toLowerCase()) || (p.marca || '').toLowerCase().includes(q.toLowerCase()) || (p.proveedor || '').toLowerCase().includes(q.toLowerCase()) || (p.codigo_barras || '').includes(q) || (p.cod_interno_proveedor || '').includes(q);
