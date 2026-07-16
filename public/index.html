@@ -1816,14 +1816,20 @@ function Productos({
       onClick: () => {
         setDetalle(p);
         setDetTab('variantes');
-      }
-    }, "Ver"), /*#__PURE__*/React.createElement("button", {
+      },
+      title: "Ver detalle",
+      style: { padding: '6px 8px', fontSize: '16px' }
+    }, "👁️"), /*#__PURE__*/React.createElement("button", {
       className: "btn-secondary btn-sm",
-      onClick: () => openEdit(p)
-    }, "Editar"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => openEdit(p),
+      title: "Editar producto",
+      style: { padding: '6px 8px', fontSize: '16px' }
+    }, "✏️"), /*#__PURE__*/React.createElement("button", {
       className: "btn-danger",
-      onClick: () => del(p.id)
-    }, "x"))));
+      onClick: () => del(p.id),
+      title: "Eliminar",
+      style: { padding: '6px 8px', fontSize: '16px' }
+    }, "🗑️"))));
   })))), modal && /*#__PURE__*/React.createElement("div", {
     className: "modal-bg"
   }, /*#__PURE__*/React.createElement("div", {
@@ -3249,14 +3255,20 @@ function ClientesView({
       }
     }, /*#__PURE__*/React.createElement("button", {
       className: "btn-secondary btn-sm",
-      onClick: () => setDetalle(c)
-    }, "Ver"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setDetalle(c),
+      title: "Ver detalle",
+      style: { padding: '6px 8px', fontSize: '16px' }
+    }, "👁️"), /*#__PURE__*/React.createElement("button", {
       className: "btn-secondary btn-sm",
-      onClick: () => openEdit(c)
-    }, "Editar"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => openEdit(c),
+      title: "Editar cliente",
+      style: { padding: '6px 8px', fontSize: '16px' }
+    }, "✏️"), /*#__PURE__*/React.createElement("button", {
       className: "btn-danger",
-      onClick: () => del(c.id)
-    }, "x"))));
+      onClick: () => del(c.id),
+      title: "Eliminar",
+      style: { padding: '6px 8px', fontSize: '16px' }
+    }, "🗑️"))));
   })))), modal && /*#__PURE__*/React.createElement("div", {
     className: "modal-bg"
   }, /*#__PURE__*/React.createElement("div", {
@@ -4229,10 +4241,14 @@ function Compras({
       }
     }, /*#__PURE__*/React.createElement("button", {
       className: "btn-secondary btn-sm",
-      onClick: () => setDetalle(c)
-    }, "Ver"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setDetalle(c),
+      title: "Ver detalle",
+      style: { padding: '6px 8px', fontSize: '16px' }
+    }, "👁️"), /*#__PURE__*/React.createElement("button", {
       className: "btn-danger",
-      onClick: () => del(c.id)
+      onClick: () => del(c.id),
+      title: "Eliminar",
+      style: { padding: '6px 8px', fontSize: '16px' }
     }, "x"))));
   })))), modal && /*#__PURE__*/React.createElement("div", {
     className: "modal-bg"
