@@ -1572,6 +1572,76 @@ function Productos({
     }).eq('id', p.id);
     onRefresh();
   };
+  const exportToFacebook = () => {
+    const rows = [];
+    const header = ['brand', 'ID', 'title', 'price', 'quantity_to_sell_on_facebook', 'availability', 'status', 'description', 'condition', 'image_link', 'additional_image_link', 'additional_image_link2', 'additional_image_link3', 'additional_image_link4', 'item_group_id', 'color', 'size', 'category'];
+    rows.push(header.map(h => `"${h}"`).join(','));
+
+    productos.forEach(p => {
+      const vars = variantesDeProducto(p.id);
+      const imgs = imagenesDeProducto(p.id);
+      const stock = vars.length > 0 ? vars.reduce((s, v) => s + Number(v.stock || 0), 0) : p.stock_actual;
+      const availability = stock > 0 ? 'in stock' : 'out of stock';
+      const status = (!p.activo || stock === 0) ? 'archived' : 'active';
+
+      if (vars.length === 0) {
+        // Sin variantes
+        const row = [
+          p.marca || '',
+          p.id,
+          p.nombre,
+          p.precio_venta || 0,
+          stock,
+          availability,
+          status,
+          p.descripcion || '',
+          'new',
+          imgs[0]?.url || '',
+          imgs[1]?.url || '',
+          imgs[2]?.url || '',
+          imgs[3]?.url || '',
+          imgs[4]?.url || '',
+          p.id,
+          '',
+          '',
+          p.categoria || ''
+        ];
+        rows.push(row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+      } else {
+        // Con variantes
+        vars.forEach(v => {
+          const row = [
+            p.marca || '',
+            `${p.id}-${v.id}`,
+            p.nombre,
+            p.precio_venta || 0,
+            v.stock || 0,
+            v.stock > 0 ? 'in stock' : 'out of stock',
+            (!p.activo || v.stock === 0) ? 'archived' : 'active',
+            p.descripcion || '',
+            'new',
+            imgs[0]?.url || '',
+            imgs[1]?.url || '',
+            imgs[2]?.url || '',
+            imgs[3]?.url || '',
+            imgs[4]?.url || '',
+            p.id,
+            v.color || '',
+            v.talle || '',
+            p.categoria || ''
+          ];
+          rows.push(row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','));
+        });
+      }
+    });
+
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.setAttribute('href', URL.createObjectURL(blob));
+    link.setAttribute('download', `facebook-catalog-${new Date().toISOString().split('T')[0]}.csv`);
+    link.click();
+  };
   const filtrados = productos.filter(p => {
     const coincide = p.nombre.toLowerCase().includes(q.toLowerCase()) || (p.categoria || '').toLowerCase().includes(q.toLowerCase()) || (p.marca || '').toLowerCase().includes(q.toLowerCase()) || (p.proveedor || '').toLowerCase().includes(q.toLowerCase()) || (p.codigo_barras || '').includes(q) || (p.cod_interno_proveedor || '').includes(q);
     const stock = p.stock_actual || 0;
@@ -1593,10 +1663,19 @@ function Productos({
       fontSize: '19px',
       fontWeight: '600'
     }
-  }, "Productos"), /*#__PURE__*/React.createElement("button", {
+  }, "Productos"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
     className: "btn-primary",
     onClick: openNew
-  }, "+ Nuevo producto")), /*#__PURE__*/React.createElement("div", {
+  }, "+ Nuevo producto"), /*#__PURE__*/React.createElement("button", {
+    className: "btn-secondary",
+    onClick: exportToFacebook,
+    title: "Exportar catálogo para Facebook/WhatsApp"
+  }, "📤 Facebook"))), /*#__PURE__*/React.createElement("div", {
     style: {
       marginBottom: '1rem'
     }
