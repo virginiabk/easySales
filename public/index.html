@@ -371,6 +371,10 @@ function App() {
     icon: '📈',
     label: 'Reportes'
   }, {
+    id: 'whatsapp',
+    icon: '📱',
+    label: 'WhatsApp'
+  }, {
     id: 'configuracion',
     icon: '⚙️',
     label: 'Configuración'
@@ -524,6 +528,9 @@ function App() {
     clientes: clientes,
     ventas: ventas,
     onRefresh: () => load()
+  }), section === 'whatsapp' && /*#__PURE__*/React.createElement(WhatsAppGenerator, {
+    productos: productos,
+    prodImagenes: prodImagenes
   }), section === 'configuracion' && /*#__PURE__*/React.createElement(Configuracion, {
     sb: sb,
     config: config,
@@ -543,6 +550,251 @@ function App() {
     vitems: vitems,
     productos: productos
   }))));
+}
+
+// ─── WhatsApp Image Generator ────────────────────────────────────────────────
+function WhatsAppGenerator({ productos, prodImagenes }) {
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [searchQ, setSearchQ] = useState('');
+  const [bgType, setBgType] = useState('color'); // 'color' | 'image'
+  const [bgColor, setBgColor] = useState({ r: 102, g: 126, b: 238 });
+  const [bgImage, setBgImage] = useState(null);
+  const [bgImageOverlay, setBgImageOverlay] = useState(30);
+  const [message, setMessage] = useState('');
+  const [imageFormat, setImageFormat] = useState(1); // 1, 2, 3, 4
+
+  const presetColors = [
+    { r: 102, g: 126, b: 238 },
+    { r: 240, g: 147, b: 251 },
+    { r: 79, g: 172, b: 254 },
+    { r: 67, g: 233, b: 123 },
+    { r: 250, g: 112, b: 154 },
+    { r: 26, g: 26, b: 24 },
+    { r: 255, g: 255, b: 255 },
+    { r: 232, g: 75, b: 74 }
+  ];
+
+  const handleAddProduct = () => {
+    if (selectedProducts.length < imageFormat) {
+      const prod = productos.find(p => p.nombre.toLowerCase().includes(searchQ.toLowerCase()));
+      if (prod && !selectedProducts.find(p => p.id === prod.id)) {
+        setSelectedProducts([...selectedProducts, prod]);
+        setSearchQ('');
+      }
+    }
+  };
+
+  const handleRemoveProduct = (id) => {
+    setSelectedProducts(selectedProducts.filter(p => p.id !== id));
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setBgImage(event.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDownload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1080;
+    const ctx = canvas.getContext('2d');
+
+    // Dibujar fondo
+    if (bgType === 'color') {
+      ctx.fillStyle = `rgb(${bgColor.r}, ${bgColor.g}, ${bgColor.b})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else if (bgImage) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const opacity = (100 - bgImageOverlay) / 100;
+        ctx.fillStyle = `rgba(0, 0, 0, ${1 - opacity})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        drawProducts(ctx, canvas);
+      };
+      img.src = bgImage;
+      return;
+    }
+
+    drawProducts(ctx, canvas);
+  };
+
+  const drawProducts = (ctx, canvas) => {
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'center';
+
+    if (imageFormat === 1 && selectedProducts[0]) {
+      const p = selectedProducts[0];
+      ctx.fillText(p.nombre, canvas.width / 2, canvas.height / 2 - 100);
+      ctx.fillStyle = '#E24B4A';
+      ctx.font = 'bold 48px Arial';
+      ctx.fillText('$' + (p.precio_venta || 0), canvas.width / 2, canvas.height / 2 + 100);
+    }
+
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `whatsapp-catalog-${new Date().getTime()}.png`;
+    link.click();
+  };
+
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '24px',
+      padding: '20px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'white',
+      borderRadius: '12px',
+      padding: '20px',
+      border: '1px solid #e8e8e4'
+    }
+  }, /*#__PURE__*/React.createElement("h2", { style: { fontSize: '16px', marginBottom: '16px' } }, "Configuración"), /*#__PURE__*/React.createElement("div", { style: { marginBottom: '16px' } }, /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: '500', display: 'block', marginBottom: '8px', color: '#666', textTransform: 'uppercase' } }, "Formato"), /*#__PURE__*/React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' } }, [1, 2, 3, 4].map(n => /*#__PURE__*/React.createElement("button", {
+    key: n,
+    onClick: () => { setImageFormat(n); setSelectedProducts(selectedProducts.slice(0, n)); },
+    style: {
+      padding: '8px',
+      background: imageFormat === n ? '#1D9E75' : 'white',
+      color: imageFormat === n ? 'white' : '#1a1a18',
+      border: imageFormat === n ? 'none' : '1px solid #d0d0cc',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontWeight: '500',
+      transition: 'all 0.15s'
+    }
+  }, n + ' img")))), /*#__PURE__*/React.createElement("div", { style: { marginBottom: '16px', borderTop: '1px solid #e8e8e4', borderBottom: '1px solid #e8e8e4', paddingTop: '16px', paddingBottom: '16px' } }, /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: '500', display: 'block', marginBottom: '8px', color: '#666', textTransform: 'uppercase' } }, "Seleccionar Producto"), /*#__PURE__*/React.createElement("div", { style: { display: 'flex', gap: '8px', marginBottom: '12px' } }, /*#__PURE__*/React.createElement("input", {
+    type: 'text',
+    value: searchQ,
+    onChange: (e) => setSearchQ(e.target.value),
+    placeholder: 'Buscar...',
+    style: { flex: 1, padding: '8px 12px', border: '1px solid #d0d0cc', borderRadius: '8px', fontSize: '14px' }
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: handleAddProduct,
+    disabled: selectedProducts.length >= imageFormat,
+    style: { padding: '8px 12px', background: selectedProducts.length >= imageFormat ? '#ccc' : '#1D9E75', color: 'white', border: 'none', borderRadius: '8px', cursor: selectedProducts.length >= imageFormat ? 'not-allowed' : 'pointer', fontWeight: '500' }
+  }, "Agregar")), selectedProducts.map(p => /*#__PURE__*/React.createElement("div", {
+    key: p.id,
+    style: {
+      background: '#f5f5f2',
+      padding: '12px',
+      borderRadius: '8px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      fontSize: '13px',
+      marginBottom: '8px'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", { style: { fontWeight: '600' } }, p.nombre), /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', color: '#888' } }, "$", (p.precio_venta || 0).toLocaleString('es-AR'))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => handleRemoveProduct(p.id),
+    style: { background: '#E24B4A', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '11px', fontWeight: '500' }
+  }, "✕")))), /*#__PURE__*/React.createElement("div", { style: { marginBottom: '16px' } }, /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: '500', display: 'block', marginBottom: '8px', color: '#666', textTransform: 'uppercase' } }, "Mensaje (opcional)"), /*#__PURE__*/React.createElement("textarea", {
+    value: message,
+    onChange: (e) => setMessage(e.target.value),
+    placeholder: '¡Disponible ahora! 🎁',
+    style: { width: '100%', minHeight: '80px', padding: '8px 12px', border: '1px solid #d0d0cc', borderRadius: '8px', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical' }
+  })), /*#__PURE__*/React.createElement("div", { style: { marginBottom: '16px' } }, /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: '500', display: 'block', marginBottom: '8px', color: '#666', textTransform: 'uppercase' } }, "Tipo de Fondo"), /*#__PURE__*/React.createElement("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' } }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setBgType('color'),
+    style: {
+      padding: '8px',
+      background: bgType === 'color' ? '#1D9E75' : 'white',
+      color: bgType === 'color' ? 'white' : '#1a1a18',
+      border: bgType === 'color' ? 'none' : '1px solid #d0d0cc',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontWeight: '500'
+    }
+  }, "🎨 Color"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setBgType('image'),
+    style: {
+      padding: '8px',
+      background: bgType === 'image' ? '#1D9E75' : 'white',
+      color: bgType === 'image' ? 'white' : '#1a1a18',
+      border: bgType === 'image' ? 'none' : '1px solid #d0d0cc',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontWeight: '500'
+    }
+  }, "📷 Imagen"))), bgType === 'color' && /*#__PURE__*/React.createElement("div", { style: { marginBottom: '16px' } }, /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: '500', display: 'block', marginBottom: '8px', color: '#666', textTransform: 'uppercase' } }, "Color RGB"), /*#__PURE__*/React.createElement("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' } }, ['R', 'G', 'B'].map((c, i) => /*#__PURE__*/React.createElement("div", {
+    key: c
+  }, /*#__PURE__*/React.createElement("label", { style: { fontSize: '10px', color: '#999', display: 'block' } }, c), /*#__PURE__*/React.createElement("input", {
+    type: 'number',
+    min: '0',
+    max: '255',
+    value: Object.values(bgColor)[i],
+    onChange: (e) => {
+      const vals = Object.values(bgColor);
+      vals[i] = parseInt(e.target.value) || 0;
+      setBgColor({ r: vals[0], g: vals[1], b: vals[2] });
+    },
+    style: { width: '100%', padding: '8px 12px', border: '1px solid #d0d0cc', borderRadius: '8px', fontSize: '14px' }
+  })))), /*#__PURE__*/React.createElement("div", { style: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' } }, presetColors.map((c, i) => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    onClick: () => setBgColor(c),
+    style: {
+      background: `rgb(${c.r}, ${c.g}, ${c.b})`,
+      width: '100%',
+      paddingBottom: '100%',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      border: bgColor.r === c.r && bgColor.g === c.g && bgColor.b === c.b ? '3px solid #1D9E75' : 'none',
+      position: 'relative',
+      paddingBottom: undefined,
+      aspectRatio: '1'
+    }
+  })))), bgType === 'image' && /*#__PURE__*/React.createElement("div", { style: { marginBottom: '16px' } }, /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: '500', display: 'block', marginBottom: '8px', color: '#666', textTransform: 'uppercase' } }, "Subir Imagen"), /*#__PURE__*/React.createElement("input", {
+    type: 'file',
+    accept: 'image/*',
+    onChange: handleImageUpload,
+    style: { width: '100%', marginBottom: '8px' }
+  }), /*#__PURE__*/React.createElement("label", { style: { fontSize: '12px', fontWeight: '500', display: 'block', marginBottom: '8px', color: '#666', textTransform: 'uppercase' } }, "Oscuridad"), /*#__PURE__*/React.createElement("input", {
+    type: 'range',
+    min: '0',
+    max: '100',
+    value: bgImageOverlay,
+    onChange: (e) => setBgImageOverlay(parseInt(e.target.value)),
+    style: { width: '100%', cursor: 'pointer' }
+  }), /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', color: '#888', marginTop: '4px' } }, "0% = transparente | 100% = muy oscuro"))), /*#__PURE__*/React.createElement("button", {
+    onClick: handleDownload,
+    disabled: selectedProducts.length === 0,
+    style: { width: '100%', padding: '12px', background: selectedProducts.length === 0 ? '#ccc' : '#1D9E75', color: 'white', border: 'none', borderRadius: '8px', cursor: selectedProducts.length === 0 ? 'not-allowed' : 'pointer', fontWeight: '500', marginTop: '16px' }
+  }, "⬇️ Descargar Imagen")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'white',
+      borderRadius: '12px',
+      padding: '20px',
+      border: '1px solid #e8e8e4',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '16px'
+    }
+  }, /*#__PURE__*/React.createElement("div", { style: { fontSize: '12px', fontWeight: '500', color: '#888', textTransform: 'uppercase', letterSpacing: '0.04em' } }, "Vista Previa"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: '280px',
+      height: '280px',
+      background: bgType === 'color' ? `rgb(${bgColor.r}, ${bgColor.g}, ${bgColor.b})` : bgImage ? `linear-gradient(rgba(0,0,0,${1 - (100 - bgImageOverlay) / 100}), rgba(0,0,0,${1 - (100 - bgImageOverlay) / 100})), url('${bgImage}')` : 'rgb(102, 126, 238)',
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      borderRadius: '12px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      padding: '16px',
+      color: 'white',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+      position: 'relative'
+    }
+  }, selectedProducts.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", { style: { fontSize: '32px' } }, "🖼️"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", { style: { fontWeight: '600', fontSize: '14px', marginBottom: '8px' } }, selectedProducts[0]?.nombre), /*#__PURE__*/React.createElement("div", { style: { background: '#E24B4A', padding: '8px 12px', borderRadius: '8px', fontSize: '16px', fontWeight: '700', textAlign: 'center' } }, "$", (selectedProducts[0]?.precio_venta || 0).toLocaleString('es-AR'))))), /*#__PURE__*/React.createElement("div", { style: { fontSize: '11px', color: '#888' } }, "Formato: ", imageFormat, "x1 (", ['Story', 'Carousel', '3x1', '4x1'][imageFormat - 1], ")"))))
+  );
 }
 
 // ─── Dashboard ───────────────────────────────────────────────────────────────
