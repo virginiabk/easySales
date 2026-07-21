@@ -644,12 +644,22 @@ function WhatsAppGenerator({ productos, prodImagenes }) {
     link.click();
   };
 
-  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '20px',
+      maxWidth: '100%'
+    }
+  }, /*#__PURE__*/React.createElement("h1", {
+    style: {
+      fontSize: '19px',
+      fontWeight: '600',
+      marginBottom: '20px'
+    }
+  }, "Generador de Imágenes WhatsApp"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: 'grid',
       gridTemplateColumns: '1fr 1fr',
-      gap: '24px',
-      padding: '20px'
+      gap: '24px'
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
