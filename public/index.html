@@ -528,10 +528,29 @@ function App() {
     clientes: clientes,
     ventas: ventas,
     onRefresh: () => load()
-  }), section === 'whatsapp' && /*#__PURE__*/React.createElement(WhatsAppGenerator, {
-    productos: productos,
-    prodImagenes: prodImagenes
-  }), section === 'configuracion' && /*#__PURE__*/React.createElement(Configuracion, {
+  }), section === 'whatsapp' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '40px',
+      textAlign: 'center',
+      maxWidth: '600px',
+      margin: '0 auto'
+    }
+  }, /*#__PURE__*/React.createElement("h1", { style: { fontSize: '24px', marginBottom: '20px' } }, "📱 Generador WhatsApp"), /*#__PURE__*/React.createElement("p", { style: { fontSize: '14px', color: '#666', marginBottom: '30px', lineHeight: '1.6' } }, "Abre el generador de imágenes en una ventana nueva para crear catálogos personalizados con tus productos. Elige hasta 4 productos, configura el fondo (color o imagen) y descarga la imagen lista para compartir en WhatsApp."), /*#__PURE__*/React.createElement("button", {
+    onClick: () => window.open('https://claude.ai/code/artifact/022a149f-3180-4c89-a33e-99e7dcdde4c3', '_blank'),
+    style: {
+      padding: '12px 24px',
+      background: '#1D9E75',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '16px',
+      fontWeight: '600',
+      cursor: 'pointer',
+      transition: 'background 0.15s'
+    },
+    onMouseEnter: (e) => e.target.style.background = '#0F6E56',
+    onMouseLeave: (e) => e.target.style.background = '#1D9E75'
+  }, "Abrir Generador →")), section === 'configuracion' && /*#__PURE__*/React.createElement(Configuracion, {
     sb: sb,
     config: config,
     onRefresh: () => load()
