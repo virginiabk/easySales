@@ -1675,12 +1675,13 @@ function Productos({
   };
   const filtrados = productos.filter(p => {
     const coincide = p.nombre.toLowerCase().includes(q.toLowerCase()) || (p.categoria || '').toLowerCase().includes(q.toLowerCase()) || (p.marca || '').toLowerCase().includes(q.toLowerCase()) || (p.proveedor || '').toLowerCase().includes(q.toLowerCase()) || (p.codigo_barras || '').includes(q) || (p.cod_interno_proveedor || '').includes(q);
+    const variantesCoinciden = variantesDeProducto(p.id).some(v => (v.color || '').toLowerCase().includes(q.toLowerCase()) || (v.talle || '').toLowerCase().includes(q.toLowerCase()));
     const stock = p.stock_actual || 0;
-    if (filtroEstado === 'disponibles') return coincide && p.activo && stock > 0;
-    if (filtroEstado === 'sin_stock') return coincide && (!p.activo || stock === 0);
-    if (filtroEstado === 'activos') return coincide && p.activo;
-    if (filtroEstado === 'inactivos') return coincide && !p.activo;
-    return coincide;
+    if (filtroEstado === 'disponibles') return (coincide || variantesCoinciden) && p.activo && stock > 0;
+    if (filtroEstado === 'sin_stock') return (coincide || variantesCoinciden) && (!p.activo || stock === 0);
+    if (filtroEstado === 'activos') return (coincide || variantesCoinciden) && p.activo;
+    if (filtroEstado === 'inactivos') return (coincide || variantesCoinciden) && !p.activo;
+    return coincide || variantesCoinciden;
   });
   return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
