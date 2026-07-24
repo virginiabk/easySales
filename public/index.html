@@ -2114,8 +2114,20 @@ function Productos({
     XLSX.writeFile(wb, `facebook-catalog-${new Date().toISOString().split('T')[0]}.xlsx`);
   };
   const filtrados = productos.filter(p => {
-    const coincide = p.nombre.toLowerCase().includes(q.toLowerCase()) || (p.categoria || '').toLowerCase().includes(q.toLowerCase()) || (p.marca || '').toLowerCase().includes(q.toLowerCase()) || (p.proveedor || '').toLowerCase().includes(q.toLowerCase()) || (p.codigo_barras || '').includes(q) || (p.cod_interno_proveedor || '').includes(q);
-    const variantesCoinciden = variantesDeProducto(p.id).some(v => (v.color || '').toLowerCase().includes(q.toLowerCase()) || (v.talle || '').toLowerCase().includes(q.toLowerCase()));
+    const q_lower = q.toLowerCase();
+    const coincide = p.nombre.toLowerCase().includes(q_lower) ||
+                     (p.categoria || '').toLowerCase().includes(q_lower) ||
+                     (p.marca || '').toLowerCase().includes(q_lower) ||
+                     (p.proveedor || '').toLowerCase().includes(q_lower) ||
+                     (p.codigo_barras || '').includes(q) ||
+                     (p.cod_interno_proveedor || '').includes(q) ||
+                     (p.codigoproducto || '').toLowerCase().includes(q_lower);
+    const variantesCoinciden = variantesDeProducto(p.id).some(v =>
+      (v.color || '').toLowerCase().includes(q_lower) ||
+      (v.talle || '').toLowerCase().includes(q_lower) ||
+      (v.codigoproducto || '').toLowerCase().includes(q_lower) ||
+      (v.cod_interno_proveedor || '').toLowerCase().includes(q_lower)
+    );
     const stock = p.stock_actual || 0;
     if (filtroEstado === 'disponibles') return (coincide || variantesCoinciden) && p.activo && stock > 0;
     if (filtroEstado === 'sin_stock') return (coincide || variantesCoinciden) && (!p.activo || stock === 0);
@@ -2152,7 +2164,7 @@ function Productos({
       marginBottom: '1rem'
     }
   }, /*#__PURE__*/React.createElement("input", {
-    placeholder: "Buscar por nombre, marca, proveedor, categoria o cod...",
+    placeholder: "Buscar por nombre, marca, proveedor, categoría, código producto, código barras, cod. proveedor o color...",
     value: q,
     onChange: e => setQ(e.target.value),
     style: {
