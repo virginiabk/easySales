@@ -36,11 +36,17 @@ button { cursor: pointer; border-radius: 8px; font-weight: 500; transition: all 
 .metric { background: #f0f0ec; border-radius: 8px; padding: 1rem; }
 .metric-label { font-size: 11px; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
 .metric-value { font-size: 22px; font-weight: 500; }
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 500; color: #888; border-bottom: 1px solid #e8e8e4; text-transform: uppercase; letter-spacing: 0.04em; }
-td { padding: 10px 12px; border-bottom: 1px solid #f0f0ec; vertical-align: middle; }
+table { width: 100%; border-collapse: collapse; table-layout: auto; }
+th { text-align: left; padding: 6px 8px; font-size: 10px; font-weight: 500; color: #888; border-bottom: 1px solid #e8e8e4; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+td { padding: 8px 8px; border-bottom: 1px solid #f0f0ec; vertical-align: middle; font-size: 13px; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: #fafaf7; }
+@media (max-width: 1400px) {
+  th, td { padding: 6px 6px; font-size: 12px; }
+}
+@media (max-width: 1200px) {
+  th, td { padding: 5px 5px; font-size: 11px; }
+}
 .nav-item { padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; color: #666; transition: all 0.15s; }
 .nav-item:hover { background: #f0f0ec; color: #1a1a18; }
 .nav-item.active { background: #E1F5EE; color: #0F6E56; }
@@ -487,7 +493,7 @@ function App() {
       flex: 1,
       padding: '1.5rem',
       overflow: 'auto',
-      maxWidth: '1100px'
+      maxWidth: '100%'
     }
   }, loading ? /*#__PURE__*/React.createElement("div", {
     style: {
@@ -880,7 +886,7 @@ function WhatsAppGenerator({ productos, prodImagenes }) {
     };
   };
 
-  return /*#__PURE__*/React.createElement("div", { style: { padding: '20px', maxWidth: '1200px', margin: '0 auto' } },
+  return /*#__PURE__*/React.createElement("div", { style: { padding: '20px', maxWidth: '100%', margin: '0 auto' } },
     /*#__PURE__*/React.createElement("h1", { style: { fontSize: '20px', fontWeight: '600', marginBottom: '20px' } }, "📱 Generador WhatsApp"),
     /*#__PURE__*/React.createElement("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' } },
       // Left: Controls
