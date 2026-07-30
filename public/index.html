@@ -2215,7 +2215,7 @@ function Productos({
       fontSize: '32px',
       marginBottom: '8px'
     }
-  }, "\uD83D\uDCE6"), "No hay productos.") : /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Producto"), /*#__PURE__*/React.createElement("th", null, "Marca / Prov."), /*#__PURE__*/React.createElement("th", null, "C\xF3d. barras"), /*#__PURE__*/React.createElement("th", null, "Costo"), /*#__PURE__*/React.createElement("th", null, "Precio"), /*#__PURE__*/React.createElement("th", null, "Margen"), /*#__PURE__*/React.createElement("th", null, "Stock"), /*#__PURE__*/React.createElement("th", null, "Estado"), /*#__PURE__*/React.createElement("th", null, "Activo"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, filtrados.map(p => {
+  }, "\uD83D\uDCE6"), "No hay productos.") : /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Producto"), /*#__PURE__*/React.createElement("th", null, "Marca / Prov."), /*#__PURE__*/React.createElement("th", null, "C\u00F3d. producto"), /*#__PURE__*/React.createElement("th", null, "C\u00F3d. barras"), /*#__PURE__*/React.createElement("th", null, "Costo"), /*#__PURE__*/React.createElement("th", null, "Precio"), /*#__PURE__*/React.createElement("th", null, "Margen"), /*#__PURE__*/React.createElement("th", null, "Stock"), /*#__PURE__*/React.createElement("th", null, "Estado"), /*#__PURE__*/React.createElement("th", null, "Activo"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, filtrados.map(p => {
     const margen = p.precio_venta > 0 ? Math.round((p.precio_venta - p.precio_costo) / p.precio_venta * 100) : 0;
     const stock = stockTotal(p);
     const st = stock === 0 ? 'tag-none' : stock <= p.stock_minimo ? 'tag-low' : 'tag-ok';
@@ -2310,6 +2310,16 @@ function Productos({
         color: '#888'
       }
     }, p.proveedor))), /*#__PURE__*/React.createElement("td", {
+      style: {
+        fontSize: '11px',
+        fontFamily: 'monospace',
+        color: '#666'
+      }
+    }, p.codigoproducto || /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: '#ccc'
+      }
+    }, "\u2014")), /*#__PURE__*/React.createElement("td", {
       style: {
         fontSize: '12px',
         fontFamily: 'monospace',
